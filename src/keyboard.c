@@ -6056,10 +6056,10 @@ make_lispy_event (struct input_event *event)
     case CONFIG_CHANGED_EVENT:
 	return list3 (Qconfig_changed_event,
 		      event->arg, event->frame_or_window);
-
+#ifdef HAVE_PGTK
     case PGTK_PREEDIT_TEXT_EVENT:
       return list2 (intern("pgtk-preedit-text"), event->arg);
-
+#endif
       /* The 'kind' field of the event is something we don't recognize.  */
     default:
       emacs_abort ();
