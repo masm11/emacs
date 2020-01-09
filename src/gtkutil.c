@@ -1326,6 +1326,7 @@ xg_create_frame_widgets (struct frame *f)
 #ifndef HAVE_GTK3
   GtkRcStyle *style;
 #endif
+  GtkWindowType type = GTK_WINDOW_TOPLEVEL;
   char *title = 0;
 
   PGTK_TRACE("xg_create_frame_widgets.");
@@ -1339,9 +1340,17 @@ xg_create_frame_widgets (struct frame *f)
     }
   else
 #endif
-    wtop = gtk_window_new (GTK_WINDOW_TOPLEVEL);
+
 #ifdef HAVE_PGTK
-  gtk_widget_add_events(wtop, GDK_ALL_EVENTS_MASK);
+    if (!NILP(f->parent_frame)){
+      type = GTK_WINDOW_POPUP;
+    }
+#endif
+
+  wtop = gtk_window_new (type);
+#ifdef HAVE_PGTK
+	gtk_widget_add_events(wtop, GDK_ALL_EVENTS_MASK);
+	gtk_window_set_hide_titlebar_when_maximized(wtop, TRUE);
 #endif
 
   /* gtk_window_set_has_resize_grip is a Gtk+ 3.0 function but Ubuntu
@@ -1467,7 +1476,7 @@ xg_create_frame_widgets (struct frame *f)
 #ifndef HAVE_PGTK
   gtk_widget_realize (wfixed);
 #else
-  gtk_widget_show_all(wtop);
+  //  gtk_widget_show_all(wtop);
 #endif
 #ifndef HAVE_PGTK
   FRAME_X_WINDOW (f) = GTK_WIDGET_TO_X_WIN (wfixed);

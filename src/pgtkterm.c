@@ -357,13 +357,13 @@ x_set_offset (struct frame *f, int xoff, int yoff, int change_gravity)
 {
   /* not working on wayland. */
 
-  PGTK_TRACE("x_set_offset: %d,%d,%d.", xoff, yoff, change_gravity);
+  APGTK_TRACE("x_set_offset: %d,%d,%d.", xoff, yoff, change_gravity);
 
   if (change_gravity > 0)
     {
-      PGTK_TRACE("x_set_offset: change_gravity > 0");
-      f->top_pos = yoff;
-      f->left_pos = xoff;
+      APGTK_TRACE("x_set_offset: change_gravity > 0");
+      f->top_pos = yoff+60;
+      f->left_pos = xoff + 25;
       f->size_hint_flags &= ~ (XNegative | YNegative);
       if (xoff < 0)
 	f->size_hint_flags |= XNegative;
@@ -381,7 +381,7 @@ x_set_offset (struct frame *f, int xoff, int yoff, int change_gravity)
      has been realized already, leave it to gtk_window_move to DTRT
      and return.  Used for Bug#25851 and Bug#25943.  */
   if (change_gravity != 0 && FRAME_GTK_OUTER_WIDGET (f)) {
-    PGTK_TRACE("x_set_offset: move to %d,%d.", f->left_pos, f->top_pos);
+    APGTK_TRACE("x_set_offset: move to %d,%d.", f->left_pos, f->top_pos);
     gtk_window_move (GTK_WINDOW (FRAME_GTK_OUTER_WIDGET (f)),
 		     f->left_pos, f->top_pos);
   }
@@ -681,6 +681,63 @@ x_display_pixel_width (struct pgtk_display_info *dpyinfo)
   PGTK_TRACE(" = %d", gdk_screen_get_width(gscr));
   return gdk_screen_get_width(gscr);
 }
+
+void
+x_set_parent_frame (struct frame *f, Lisp_Object new_value, Lisp_Object old_value)
+/* --------------------------------------------------------------------------
+     Set frame F's `parent-frame' parameter.  If non-nil, make F a child
+     frame of the frame specified by that parameter.  Technically, this
+     makes F's window-system window a child window of the parent frame's
+     window-system window.  If nil, make F's window-system window a
+     top-level window--a child of its display's root window.
+
+     A child frame's `left' and `top' parameters specify positions
+     relative to the top-left corner of its parent frame's native
+     rectangle.  On macOS moving a parent frame moves all its child
+     frames too, keeping their position relative to the parent
+     unaltered.  When a parent frame is iconified or made invisible, its
+     child frames are made invisible.  When a parent frame is deleted,
+     its child frames are deleted too.
+
+     Whether a child frame has a tool bar may be window-system or window
+     manager dependent.  It's advisable to disable it via the frame
+     parameter settings.
+
+     Some window managers may not honor this parameter.
+   -------------------------------------------------------------------------- */
+{
+  struct frame *p = NULL;
+  int width = 0, height = 0;
+
+  PGTK_TRACE ("x_set_parent_frame x: %d, y: %d, size: %d x %d", f->left_pos, f->top_pos, width, height );
+  gtk_window_get_size(FRAME_X_WINDOW(f), &width, &height);
+
+
+  PGTK_TRACE ("x_set_parent_frame x: %d, y: %d, size: %d x %d", f->left_pos, f->top_pos, width, height );
+
+  if (!NILP (new_value)
+      && (!FRAMEP (new_value)
+	  || !FRAME_LIVE_P (p = XFRAME (new_value))
+	  || !FRAME_PGTK_P (p)))
+    {
+      store_frame_param (f, Qparent_frame, old_value);
+      error ("Invalid specification of `parent-frame'");
+    }
+
+  if (p != FRAME_PARENT_FRAME (f))
+    {
+      block_input ();
+      gtk_window_set_transient_for(FRAME_X_WINDOW(f), FRAME_X_WINDOW(p));
+      gtk_window_set_attached_to(FRAME_X_WINDOW(f), FRAME_X_WINDOW(p));
+      gtk_window_move(FRAME_X_WINDOW(f), f->left_pos, f->top_pos);
+      gtk_window_set_keep_above(FRAME_X_WINDOW(f), true);
+      //fill this in
+      unblock_input ();
+
+      fset_parent_frame (f, new_value);
+    }
+}
+
 
 void
 x_set_no_focus_on_map (struct frame *f, Lisp_Object new_value, Lisp_Object old_value)
