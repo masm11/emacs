@@ -1463,10 +1463,6 @@ This function is an internal primitive--use `make-frame' instead.  */)
       gtk_window_set_transient_for(FRAME_GTK_OUTER_WIDGET(f), FRAME_GTK_OUTER_WIDGET(p));
       gtk_window_set_attached_to(FRAME_GTK_OUTER_WIDGET(f), FRAME_GTK_OUTER_WIDGET(p));
 
-      gtk_window_move(FRAME_GTK_OUTER_WIDGET(f), f->left_pos, f->top_pos+100);
-
-      //gtk_window_set_modal (FRAME_GTK_OUTER_WIDGET(f), TRUE);
-
       gtk_widget_show_all(FRAME_GTK_OUTER_WIDGET(f));
       APGTK_TRACE ("FINISH: x_set_parent_frame x: %d, y: %d, size: %d x %d", f->left_pos, f->top_pos, -1,-1);
       unblock_input ();
