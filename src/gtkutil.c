@@ -1475,8 +1475,6 @@ xg_create_frame_widgets (struct frame *f)
      by callers of this function.  */
 #ifndef HAVE_PGTK
   gtk_widget_realize (wfixed);
-#else
-  //  gtk_widget_show_all(wtop);
 #endif
 #ifndef HAVE_PGTK
   FRAME_X_WINDOW (f) = GTK_WIDGET_TO_X_WIN (wfixed);

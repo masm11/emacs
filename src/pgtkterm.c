@@ -357,7 +357,9 @@ x_set_offset (struct frame *f, int xoff, int yoff, int change_gravity)
 {
   /* not working on wayland. */
 
-  APGTK_TRACE("x_set_offset: %d,%d,%d.", xoff, yoff, change_gravity);
+  APGTK_TRACE("x_set_offset: %d,%d,%d. \n\t%d, %d", xoff, yoff, change_gravity,
+	      gtk_widget_get_allocated_height(FRAME_GTK_OUTER_WIDGET (f)),
+	      gtk_widget_get_allocated_height(FRAME_GTK_WIDGET (f)));
 
   if (change_gravity > 0)
     {
@@ -407,7 +409,7 @@ pgtk_set_window_size (struct frame *f,
   block_input ();
 
   gtk_widget_get_size_request(FRAME_GTK_WIDGET(f), &pixelwidth, &pixelheight);
-  PGTK_TRACE("old: %dx%d", pixelwidth, pixelheight);
+  APGTK_TRACE("old: %dx%d", pixelwidth, pixelheight);
 
   if (pixelwise)
     {
@@ -428,18 +430,18 @@ pgtk_set_window_size (struct frame *f,
 	    make_fixnum (FRAME_PGTK_TITLEBAR_HEIGHT (f)),
 	    make_fixnum (FRAME_TOOLBAR_HEIGHT (f))));
 
-  PGTK_TRACE("new: %dx%d", pixelwidth, pixelheight);
+  APGTK_TRACE("new: %dx%d", pixelwidth, pixelheight);
   for (GtkWidget *w = FRAME_GTK_WIDGET(f); w != NULL; w = gtk_widget_get_parent(w)) {
-    PGTK_TRACE("%p %s %d %d", w, G_OBJECT_TYPE_NAME(w), gtk_widget_get_mapped(w), gtk_widget_get_visible(w));
+    APGTK_TRACE("%p %s %d %d", w, G_OBJECT_TYPE_NAME(w), gtk_widget_get_mapped(w), gtk_widget_get_visible(w));
     gint wd, hi;
     gtk_widget_get_size_request(w, &wd, &hi);
-    PGTK_TRACE(" %dx%d", wd, hi);
+    APGTK_TRACE(" %dx%d", wd, hi);
     GtkAllocation alloc;
     gtk_widget_get_allocation(w, &alloc);
-    PGTK_TRACE(" %dx%d+%d+%d", alloc.width, alloc.height, alloc.x, alloc.y);
+    APGTK_TRACE(" %dx%d+%d+%d", alloc.width, alloc.height, alloc.x, alloc.y);
   }
 
-  PGTK_TRACE("pgtk_set_window_size: %p: %dx%d.", f, width, height);
+  APGTK_TRACE("pgtk_set_window_size: %p: %dx%d.", f, width, height);
   f->output_data.pgtk->preferred_width = pixelwidth;
   f->output_data.pgtk->preferred_height = pixelheight;
   x_wm_set_size_hint(f, 0, 0);
@@ -709,7 +711,7 @@ x_set_parent_frame (struct frame *f, Lisp_Object new_value, Lisp_Object old_valu
   struct frame *p = NULL;
   int width = 0, height = 0;
 
-  PGTK_TRACE ("x_set_parent_frame x: %d, y: %d, size: %d x %d", f->left_pos, f->top_pos, width, height );
+  APGTK_TRACE ("x_set_parent_frame x: %d, y: %d, size: %d x %d", f->left_pos, f->top_pos, width, height );
   gtk_window_get_size(FRAME_X_WINDOW(f), &width, &height);
 
 
@@ -6662,7 +6664,7 @@ pgtk_end_cr_clip (struct frame *f)
 void
 pgtk_set_cr_source_with_gc_foreground (struct frame *f, Emacs_GC *gc)
 {
-  PGTK_TRACE("pgtk_set_cr_source_with_gc_foreground: %08lx", gc->foreground);
+  PGTK_TRACE ("pgtk_set_cr_source_with_gc_foreground: %08lx", gc->foreground);
   pgtk_set_cr_source_with_color(f, gc->foreground);
 }
 
