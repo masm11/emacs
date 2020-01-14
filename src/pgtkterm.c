@@ -99,21 +99,15 @@ pgtk_any_window_to_frame (GdkWindow *window);
 static void flip_cr_context(struct frame *f)
 {
   APGTK_TRACE("flip_cr_context");
-  cairo_surface_t *cs;
   cairo_t * cr = FRAME_CR_ACTIVE_CONTEXT(f);
 
   block_input();
-  cairo_destroy(cr);
+  if ( cr != FRAME_CR_CONTEXT(f))
+    {
+      cairo_destroy(cr);
+      FRAME_CR_ACTIVE_CONTEXT(f) = cairo_reference(FRAME_CR_CONTEXT(f));
 
-  cs = cairo_surface_create_similar(cairo_get_target(FRAME_CR_CONTEXT(f)),
-				    CAIRO_CONTENT_COLOR_ALPHA,
-				    FRAME_CR_SURFACE_DESIRED_WIDTH(f),
-				    FRAME_CR_SURFACE_DESIRED_HEIGHT(f));
-  cr = FRAME_CR_ACTIVE_CONTEXT(f) = cairo_create(cs);
-
-  cs = cairo_get_target(cr);
-  cairo_set_source_surface(cr, cairo_get_target(FRAME_CR_CONTEXT(f)), 0, 0);
-  cairo_paint(cr);
+    }
   unblock_input();
 }
 
