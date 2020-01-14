@@ -3285,7 +3285,7 @@ static void
 pgtk_flush_display (struct frame *f)
 {
   block_input ();
-  gdk_flush();
+  //gdk_flush();
   unblock_input ();
 }
 
