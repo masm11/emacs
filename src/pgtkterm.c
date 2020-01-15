@@ -2788,25 +2788,7 @@ pgtk_scroll_run (struct window *w, struct run *run)
 static void
 pgtk_update_begin (struct frame *f)
 {
-  if (! NILP (tip_frame) && XFRAME (tip_frame) == f
-      && ! FRAME_VISIBLE_P (f))
-    return;
-
-  if (! FRAME_CR_CONTEXT (f))
-    {
-      int width = FRAME_PIXEL_WIDTH (f);
-      int height = FRAME_PIXEL_HEIGHT (f);
-
-      if (width > 0 && height > 0)
-	{
-	  block_input();
-	  /* FRAME_CR_SURFACE (f) = cairo_image_surface_create */
-	  /*   (CAIRO_FORMAT_ARGB32, width, height); */
-	  unblock_input();
-	}
-    }
-
-  pgtk_clear_under_internal_border (f);
+  /* Nothing required */
 }
 
 /* Start update of window W.  */
