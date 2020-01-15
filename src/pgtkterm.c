@@ -98,7 +98,7 @@ pgtk_any_window_to_frame (GdkWindow *window);
 
 static void flip_cr_context(struct frame *f)
 {
-  APGTK_TRACE("flip_cr_context");
+  PGTK_TRACE("flip_cr_context");
   cairo_t * cr = FRAME_CR_ACTIVE_CONTEXT(f);
 
   block_input();
@@ -4281,8 +4281,6 @@ pgtk_delete_terminal (struct terminal *terminal)
       dpyinfo->gdpy = NULL;
     }
 
-  delete_keyboard_wait_descriptor(0);
-
   pgtk_delete_display (dpyinfo);
   unblock_input ();
 }
@@ -4814,9 +4812,9 @@ pgtk_handle_draw(GtkWidget *widget, cairo_t *cr, gpointer *data)
       if (src == NULL && FRAME_CR_ACTIVE_CONTEXT(f) != NULL)
 	src = cairo_get_target(FRAME_CR_ACTIVE_CONTEXT(f));
     }
-    APGTK_TRACE("  surface=%p", src);
+    PGTK_TRACE("  surface=%p", src);
     if (src != NULL) {
-      APGTK_TRACE("  resized_p=%d", f->resized_p);
+      PGTK_TRACE("  resized_p=%d", f->resized_p);
       PGTK_TRACE("  garbaged=%d", f->garbaged);
       PGTK_TRACE("  scroll_bar_width=%f", (double) PGTK_SCROLL_BAR_WIDTH(f));
       // PGTK_TRACE("  scroll_bar_adjust=%d", PGTK_SCROLL_BAR_ADJUST(f));
