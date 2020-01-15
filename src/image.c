@@ -34,10 +34,6 @@ along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>.  */
 #include <c-ctype.h>
 #include <flexmember.h>
 
-#ifdef HAVE_PGTK
-#include <cairo.h>
-#endif
-
 #include "lisp.h"
 #include "frame.h"
 #include "process.h"

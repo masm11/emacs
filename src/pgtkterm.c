@@ -3146,13 +3146,10 @@ pgtk_cr_draw_image (struct frame *f, Emacs_GC *gc, cairo_pattern_t *image,
 		 int src_x, int src_y, int width, int height,
 		 int dest_x, int dest_y, bool overlay_p)
 {
-  cairo_t *cr;
-  cairo_matrix_t matrix;
-  cairo_surface_t *surface;
-  cairo_format_t format;
+  cairo_t *cr = pgtk_begin_cr_clip (f);
 
   PGTK_TRACE("pgtk_cr_draw_image: 0: %d,%d,%d,%d,%d,%d,%d.", src_x, src_y, width, height, dest_x, dest_y, overlay_p);
-  cr = pgtk_begin_cr_clip (f);
+
   if (overlay_p)
     cairo_rectangle (cr, dest_x, dest_y, width, height);
   else
@@ -3161,42 +3158,24 @@ pgtk_cr_draw_image (struct frame *f, Emacs_GC *gc, cairo_pattern_t *image,
       cairo_rectangle (cr, dest_x, dest_y, width, height);
       cairo_fill_preserve (cr);
     }
-  cairo_clip (cr);
-  cairo_matrix_init_translate (&matrix, src_x - dest_x, src_y - dest_y);
-  cairo_pattern_set_matrix (image, &matrix);
+  cairo_translate (cr, dest_x - src_x, dest_y - src_y);
+
+  cairo_surface_t *surface;
   cairo_pattern_get_surface (image, &surface);
-  format = cairo_image_surface_get_format (surface);
+  cairo_format_t format = cairo_image_surface_get_format (surface);
   if (format != CAIRO_FORMAT_A8 && format != CAIRO_FORMAT_A1)
     {
-      PGTK_TRACE("other format.");
       cairo_set_source (cr, image);
       cairo_fill (cr);
     }
   else
     {
-      if (format == CAIRO_FORMAT_A8)
-	PGTK_TRACE("format A8.");
-      else if (format == CAIRO_FORMAT_A1)
-	PGTK_TRACE("format A1.");
-      else
-	PGTK_TRACE("format ??.");
       pgtk_set_cr_source_with_gc_foreground (f, gc);
-      cairo_rectangle_list_t *rects = cairo_copy_clip_rectangle_list(cr);
-      PGTK_TRACE("rects:");
-      PGTK_TRACE(" status: %u", rects->status);
-      PGTK_TRACE(" rectangles:");
-      for (int i = 0; i < rects->num_rectangles; i++) {
-	PGTK_TRACE("  %fx%f+%f+%f",
-		rects->rectangles[i].width,
-		rects->rectangles[i].height,
-		rects->rectangles[i].x,
-		rects->rectangles[i].y);
-      }
-      cairo_rectangle_list_destroy(rects);
+      cairo_clip (cr);
       cairo_mask (cr, image);
     }
+
   pgtk_end_cr_clip (f);
-  PGTK_TRACE("pgtk_cr_draw_image: 9.");
 }
 
 static void
