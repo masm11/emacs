@@ -41,17 +41,6 @@
 (defun pgtk-ignore-1-arg (_switch)
   (setq x-invocation-args (cdr x-invocation-args)))
 
-;;;; Keyboard mapping.
-
-(define-obsolete-variable-alias 'pgtk-alternatives-map 'x-alternatives-map "24.1")
-
-(define-key global-map [home] 'beginning-of-buffer)
-(define-key global-map [end] 'end-of-buffer)
-(define-key global-map [kp-home] 'beginning-of-buffer)
-(define-key global-map [kp-end] 'end-of-buffer)
-(define-key global-map [kp-prior] 'scroll-down-command)
-(define-key global-map [kp-next] 'scroll-up-command)
-
 ;;;; File handling.
 
 (defcustom pgtk-pop-up-frames 'fresh
