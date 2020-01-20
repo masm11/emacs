@@ -38,6 +38,7 @@ along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>.  */
 
 #include "lisp.h"
 #include "blockinput.h"
+#include "frame.h"
 #include "sysselect.h"
 #include "gtkutil.h"
 #include "systime.h"
@@ -357,15 +358,24 @@ x_set_offset (struct frame *f, int xoff, int yoff, int change_gravity)
 {
   /* not working on wayland. */
 
-  APGTK_TRACE("x_set_offset: %d,%d,%d. \n\t%d, %d", xoff, yoff, change_gravity,
-	      gtk_widget_get_allocated_height(FRAME_GTK_OUTER_WIDGET (f)),
-	      gtk_widget_get_allocated_height(FRAME_GTK_WIDGET (f)));
+  PGTK_TRACE("x_set_offset: %d,%d,%d.", xoff, yoff, change_gravity);
+
+  struct frame *parent = FRAME_PARENT_FRAME(f);
+  GtkAllocation a = {0};
+
+  if (parent)
+    {
+      GtkWidget *w = FRAME_GTK_WIDGET(parent);
+      gtk_widget_get_allocation(w, &a);
+    }
+
 
   if (change_gravity > 0)
     {
-      APGTK_TRACE("x_set_offset: change_gravity > 0");
-      f->top_pos = yoff+60;
-      f->left_pos = xoff + 25;
+      PGTK_TRACE("x_set_offset: change_gravity %d > 0, %d %d", change_gravity, a.x , a.y);
+      f->top_pos = yoff + a.y; //~60
+      f->left_pos = xoff + a.x; //~25
+
       f->size_hint_flags &= ~ (XNegative | YNegative);
       if (xoff < 0)
 	f->size_hint_flags |= XNegative;
@@ -709,13 +719,7 @@ x_set_parent_frame (struct frame *f, Lisp_Object new_value, Lisp_Object old_valu
    -------------------------------------------------------------------------- */
 {
   struct frame *p = NULL;
-  int width = 0, height = 0;
-
-  APGTK_TRACE ("x_set_parent_frame x: %d, y: %d, size: %d x %d", f->left_pos, f->top_pos, width, height );
-  gtk_window_get_size(FRAME_X_WINDOW(f), &width, &height);
-
-
-  PGTK_TRACE ("x_set_parent_frame x: %d, y: %d, size: %d x %d", f->left_pos, f->top_pos, width, height );
+  PGTK_TRACE ("x_set_parent_frame x: %d, y: %d", f->left_pos, f->top_pos);
 
   if (!NILP (new_value)
       && (!FRAMEP (new_value)
