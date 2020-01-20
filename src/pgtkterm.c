@@ -393,7 +393,7 @@ x_set_offset (struct frame *f, int xoff, int yoff, int change_gravity)
      has been realized already, leave it to gtk_window_move to DTRT
      and return.  Used for Bug#25851 and Bug#25943.  */
   if (change_gravity != 0 && FRAME_GTK_OUTER_WIDGET (f)) {
-    APGTK_TRACE("x_set_offset: move to %d,%d.", f->left_pos, f->top_pos);
+    PGTK_TRACE("x_set_offset: move to %d,%d.", f->left_pos, f->top_pos);
     gtk_window_move (GTK_WINDOW (FRAME_GTK_OUTER_WIDGET (f)),
 		     f->left_pos, f->top_pos);
   }
@@ -419,7 +419,7 @@ pgtk_set_window_size (struct frame *f,
   block_input ();
 
   gtk_widget_get_size_request(FRAME_GTK_WIDGET(f), &pixelwidth, &pixelheight);
-  APGTK_TRACE("old: %dx%d", pixelwidth, pixelheight);
+  PGTK_TRACE("old: %dx%d", pixelwidth, pixelheight);
 
   if (pixelwise)
     {
@@ -440,18 +440,12 @@ pgtk_set_window_size (struct frame *f,
 	    make_fixnum (FRAME_PGTK_TITLEBAR_HEIGHT (f)),
 	    make_fixnum (FRAME_TOOLBAR_HEIGHT (f))));
 
-  APGTK_TRACE("new: %dx%d", pixelwidth, pixelheight);
   for (GtkWidget *w = FRAME_GTK_WIDGET(f); w != NULL; w = gtk_widget_get_parent(w)) {
-    APGTK_TRACE("%p %s %d %d", w, G_OBJECT_TYPE_NAME(w), gtk_widget_get_mapped(w), gtk_widget_get_visible(w));
     gint wd, hi;
     gtk_widget_get_size_request(w, &wd, &hi);
-    APGTK_TRACE(" %dx%d", wd, hi);
-    GtkAllocation alloc;
-    gtk_widget_get_allocation(w, &alloc);
-    APGTK_TRACE(" %dx%d+%d+%d", alloc.width, alloc.height, alloc.x, alloc.y);
   }
 
-  APGTK_TRACE("pgtk_set_window_size: %p: %dx%d.", f, width, height);
+  PGTK_TRACE("pgtk_set_window_size: %p: %dx%d.", f, width, height);
   f->output_data.pgtk->preferred_width = pixelwidth;
   f->output_data.pgtk->preferred_height = pixelheight;
   x_wm_set_size_hint(f, 0, 0);

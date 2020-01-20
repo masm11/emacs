@@ -1459,7 +1459,7 @@ This function is an internal primitive--use `make-frame' instead.  */)
       struct frame *p = XFRAME (parent_frame);
 
       block_input ();
-      APGTK_TRACE ("x_set_parent_frame x: %d, y: %d, size: %d x %d", f->left_pos, f->top_pos, -1,-1);
+      PGTK_TRACE ("x_set_parent_frame x: %d, y: %d", f->left_pos, f->top_pos);
       gtk_window_set_transient_for(GTK_WINDOW(FRAME_GTK_OUTER_WIDGET(f)),
 				   GTK_WINDOW(FRAME_GTK_OUTER_WIDGET(p)));
       gtk_window_set_attached_to(GTK_WINDOW(FRAME_GTK_OUTER_WIDGET(f)),
@@ -1467,7 +1467,6 @@ This function is an internal primitive--use `make-frame' instead.  */)
       gtk_window_set_destroy_with_parent(GTK_WINDOW(FRAME_GTK_OUTER_WIDGET(f)),
 					 TRUE);
       gtk_widget_show_all(FRAME_GTK_OUTER_WIDGET(f));
-      APGTK_TRACE ("FINISH: x_set_parent_frame x: %d, y: %d, size: %d x %d", f->left_pos, f->top_pos, -1,-1);
       unblock_input ();
     }
 
