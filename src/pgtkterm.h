@@ -426,8 +426,8 @@ enum
 
 /* aliases */
 #define FRAME_PGTK_VIEW(f)         FRAME_GTK_WIDGET(f)
-#define FRAME_X_WINDOW(f)          FRAME_GTK_WIDGET(f)
-#define FRAME_NATIVE_WINDOW(f)     FRAME_GTK_WIDGET(f)
+#define FRAME_X_WINDOW(f)          FRAME_GTK_OUTER_WIDGET(f)
+#define FRAME_NATIVE_WINDOW(f)     FRAME_GTK_OUTER_WIDGET(f)
 
 #define FRAME_X_DISPLAY(f)        (FRAME_DISPLAY_INFO(f)->gdpy)
 

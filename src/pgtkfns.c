@@ -3186,7 +3186,7 @@ void pgtk_log(const char *file, int lineno, const char *fmt, ...)
   va_end(ap);
   fputc('\n', stderr);
 }
-
+#ifdef PGTK_DEBUG
 void pgtk_backtrace(const char *file, int lineno)
 {
   Lisp_Object bt = make_uninit_vector(10);
@@ -3216,7 +3216,7 @@ void pgtk_backtrace(const char *file, int lineno)
 
   fprintf(stderr, "%s %.10s:%04d ********\n", timestr, file, lineno);
 }
-#ifdef PGTK_DEBUG
+
 #endif
 
 #endif
