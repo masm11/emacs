@@ -825,8 +825,8 @@ pgtk_initialize_display_info (struct pgtk_display_info *dpyinfo)
       Initialize global info and storage for display.
    -------------------------------------------------------------------------- */
 {
-    dpyinfo->resx = 72.27; /* used 75.0, but this makes pt == pixel, expected */
-    dpyinfo->resy = 72.27;
+    dpyinfo->resx = 96;
+    dpyinfo->resy = 96;
     dpyinfo->color_p = 1;
     dpyinfo->n_planes = 32;
     dpyinfo->root_window = 42; /* a placeholder.. */
@@ -6294,6 +6294,8 @@ pgtk_term_init (Lisp_Object display_name, char *resource_name)
 
   {
     GdkScreen *gscr = gdk_display_get_default_screen(dpyinfo->gdpy);
+
+    gdk_screen_set_resolution(gscr, 96.0);
     gdouble dpi = gdk_screen_get_resolution(gscr);
     dpyinfo->resx = dpi;
     dpyinfo->resy = dpi;
