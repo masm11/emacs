@@ -5399,7 +5399,7 @@ static gboolean window_state_event(GtkWidget *widget, GdkEvent *event, gpointer 
 
   if (inev.ie.kind != NO_EVENT)
     evq_enqueue(&inev);
-  return TRUE;
+  return FALSE;
 }
 
 static gboolean delete_event(GtkWidget *widget, GdkEvent *event, gpointer *user_data)
