@@ -356,33 +356,35 @@ x_set_offset (struct frame *f, int xoff, int yoff, int change_gravity)
      External: Position the window
    -------------------------------------------------------------------------- */
 {
-  /* not working on wayland. */
-
   PGTK_TRACE("x_set_offset: %d,%d,%d.", xoff, yoff, change_gravity);
 
   struct frame *parent = FRAME_PARENT_FRAME(f);
   GtkAllocation a = {0};
-
-  if (parent)
-    {
+  if (change_gravity > 0) {
+    if (parent) {
+      /* determing the "height" of the titlebar, by finding the
+	 location of the "emacsfixed" widget on the surface/window */
       GtkWidget *w = FRAME_GTK_WIDGET(parent);
       gtk_widget_get_allocation(w, &a);
     }
 
-
-  if (change_gravity > 0)
-    {
-      PGTK_TRACE("x_set_offset: change_gravity %d > 0, %d %d", change_gravity, a.x , a.y);
-      f->top_pos = yoff + a.y; //~60
+    f->size_hint_flags &= ~ (XNegative | YNegative);
+    /* if the value is negative, don't include the titlebar offset */
+    if (xoff < 0) {
+      f->size_hint_flags |= XNegative;
+      f->left_pos = xoff;
+    } else {
       f->left_pos = xoff + a.x; //~25
-
-      f->size_hint_flags &= ~ (XNegative | YNegative);
-      if (xoff < 0)
-	f->size_hint_flags |= XNegative;
-      if (yoff < 0)
-	f->size_hint_flags |= YNegative;
-      f->win_gravity = NorthWestGravity;
     }
+
+    if (yoff < 0){
+      f->size_hint_flags |= YNegative;
+      f->top_pos = yoff;
+      } else {
+      f->top_pos = yoff + a.y; //~60
+    }
+    f->win_gravity = NorthWestGravity;
+  }
 
   x_calc_absolute_position (f);
 
