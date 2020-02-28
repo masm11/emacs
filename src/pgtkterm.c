@@ -6298,9 +6298,8 @@ pgtk_term_init (Lisp_Object display_name, char *resource_name)
     GdkScreen *gscr = gdk_display_get_default_screen(dpyinfo->gdpy);
 
     GSettings *set = g_settings_new("org.gnome.desktop.interface");
-    gdouble x =g_settings_get_double(set,"text-scaling-factor");
-
-    int a = gdk_screen_get_monitor_scale_factor(gscr, 0);
+    gdouble x = g_settings_get_double(set,"text-scaling-factor");
+    gdouble dpi = 0;
 
     dpi =  96.0 * x;
     gdk_screen_set_resolution(gscr, dpi);
