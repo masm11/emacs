@@ -6303,7 +6303,6 @@ pgtk_term_init (Lisp_Object display_name, char *resource_name)
 
     dpi =  96.0 * x;
     gdk_screen_set_resolution(gscr, dpi);
-    APGTK_TRACE("dpi! %f", dpi);
     dpyinfo->resx = dpi;
     dpyinfo->resy = dpi;
   }
