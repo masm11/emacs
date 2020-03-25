@@ -6648,9 +6648,6 @@ pgtk_begin_cr_clip (struct frame *f)
 
       cr = FRAME_CR_CONTEXT (f) = cairo_create (surface);
       cairo_surface_destroy (surface);
-
-      cr = cairo_create (FRAME_CR_SURFACE (f));
-      FRAME_CR_CONTEXT (f) = cr;
     }
 
   cairo_save (cr);
