@@ -107,6 +107,9 @@ menu_highlight_callback (GtkWidget *widget, gpointer call_data)
   if (! cb_data) return;
 
   help = call_data ? cb_data->help : Qnil;
+
+  /* show the help info using GTK tooltips */
+  show_help_echo (help, Qnil, Qnil, Qnil);
 }
 
 
@@ -393,8 +396,6 @@ Lisp_Object
 pgtk_menu_show (struct frame *f, int x, int y, int menuflags,
 	     Lisp_Object title, const char **error_name)
 {
-  Lisp_Object tem;
-
   block_input ();
 
 
@@ -439,12 +440,6 @@ If FRAME is nil or not given, use the selected frame.  */)
   return Qnil;
 }
 
-
-
-static const char * button_names [] = {
-  "button1", "button2", "button3", "button4", "button5",
-  "button6", "button7", "button8", "button9", "button10" };
-
 extern Lisp_Object
 pgtk_dialog_show (struct frame *f, Lisp_Object title,
 		 Lisp_Object header, char **error)
@@ -468,7 +463,7 @@ syms_of_pgtkmenu (void)
 {
   // current_popup_menu = NULL;
   // PDUMPER_IGNORE (current_popup_menu);
-
+  defsubr (&Sx_menu_bar_open_internal);
   DEFSYM (Qdebug_on_next_call, "debug-on-next-call");
   DEFSYM (Qunsupported__w32_dialog, "unsupported--w32-dialog");
 
