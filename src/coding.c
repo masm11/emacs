@@ -9302,7 +9302,10 @@ is nil.  */)
   for (tail = coding_system_list; CONSP (tail); tail = XCDR (tail))
     {
       elt = XCAR (tail);
-      attrs = AREF (CODING_SYSTEM_SPEC (elt), 0);
+      Lisp_Object spec = CODING_SYSTEM_SPEC (elt);
+      if (!VECTORP (spec))
+        xsignal1 (Qcoding_system_error, elt);
+      attrs = AREF (spec, 0);
       ASET (attrs, coding_attr_trans_tbl,
 	    get_translation_table (attrs, 1, NULL));
       list = Fcons (list2 (elt, attrs), list);
@@ -9471,6 +9474,17 @@ not fully specified.)  */)
   return code_convert_region (start, end, coding_system, destination, 1, 0);
 }
 
+/* Whether STRING only contains chars in the 0..127 range.  */
+static bool
+string_ascii_p (Lisp_Object string)
+{
+  ptrdiff_t nbytes = SBYTES (string);
+  for (ptrdiff_t i = 0; i < nbytes; i++)
+    if (SREF (string, i) > 127)
+      return false;
+  return true;
+}
+
 Lisp_Object
 code_convert_string (Lisp_Object string, Lisp_Object coding_system,
 		     Lisp_Object dst_object, bool encodep, bool nocopy,
@@ -9485,7 +9499,7 @@ code_convert_string (Lisp_Object string, Lisp_Object coding_system,
       if (! norecord)
 	Vlast_coding_system_used = Qno_conversion;
       if (NILP (dst_object))
-	return (nocopy ? Fcopy_sequence (string) : string);
+	return nocopy ? string : Fcopy_sequence (string);
     }
 
   if (NILP (coding_system))
@@ -9502,7 +9516,28 @@ code_convert_string (Lisp_Object string, Lisp_Object coding_system,
   chars = SCHARS (string);
   bytes = SBYTES (string);
 
-  if (BUFFERP (dst_object))
+  if (EQ (dst_object, Qt))
+    {
+      /* Fast path for ASCII-only input and an ASCII-compatible coding:
+         act as identity if no EOL conversion is needed.  */
+      Lisp_Object attrs = CODING_ID_ATTRS (coding.id);
+      if (! NILP (CODING_ATTR_ASCII_COMPAT (attrs))
+          && (STRING_MULTIBYTE (string)
+              ? (chars == bytes) : string_ascii_p (string))
+          && (EQ (CODING_ID_EOL_TYPE (coding.id), Qunix)
+              || inhibit_eol_conversion
+              || ! memchr (SDATA (string), encodep ? '\n' : '\r', bytes)))
+        {
+          if (! norecord)
+            Vlast_coding_system_used = coding_system;
+          return (nocopy
+                  ? string
+                  : (encodep
+                     ? make_unibyte_string (SSDATA (string), bytes)
+                     : make_multibyte_string (SSDATA (string), bytes, bytes)));
+        }
+    }
+  else if (BUFFERP (dst_object))
     {
       struct buffer *buf = XBUFFER (dst_object);
       ptrdiff_t buf_pt = BUF_PT (buf);
@@ -11061,10 +11096,8 @@ usage: (define-coding-system-internal ...)  */)
 	  else
 	    {
 	      CHECK_CONS (val);
-	      CHECK_RANGED_INTEGER (XCAR (val), 0, 255);
-	      from = XFIXNUM (XCAR (val));
-	      CHECK_RANGED_INTEGER (XCDR (val), from, 255);
-	      to = XFIXNUM (XCDR (val));
+	      from = check_integer_range (XCAR (val), 0, 255);
+	      to = check_integer_range (XCDR (val), from, 255);
 	    }
 	  for (int i = from; i <= to; i++)
 	    SSET (valids, i, 1);
@@ -11149,7 +11182,7 @@ usage: (define-coding-system-internal ...)  */)
 	  val = XCAR (tail);
 	  CHECK_CONS (val);
 	  CHECK_CHARSET_GET_ID (XCAR (val), id);
-	  CHECK_RANGED_INTEGER (XCDR (val), 0, 3);
+	  check_integer_range (XCDR (val), 0, 3);
 	  XSETCAR (val, make_fixnum (id));
 	}
 

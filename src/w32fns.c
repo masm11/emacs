@@ -1700,10 +1700,8 @@ w32_clear_under_internal_border (struct frame *f)
 static void
 w32_set_internal_border_width (struct frame *f, Lisp_Object arg, Lisp_Object oldval)
 {
-  int border;
-
-  CHECK_TYPE_RANGED_INTEGER (int, arg);
-  border = max (XFIXNUM (arg), 0);
+  int argval = check_integer_range (arg, INT_MIN, INT_MAX);
+  int border = max (argval, 0);
 
   if (border != FRAME_INTERNAL_BORDER_WIDTH (f))
     {
@@ -8260,7 +8258,6 @@ a ShowWindow flag:
   /* Encode filename, current directory and parameters.  */
   current_dir = GUI_ENCODE_FILE (current_dir);
   document = GUI_ENCODE_FILE (document);
-  doc_w = GUI_SDATA (document);
   if (STRINGP (parameters))
     {
       parameters = GUI_ENCODE_SYSTEM (parameters);
@@ -8271,6 +8268,7 @@ a ShowWindow flag:
       operation = GUI_ENCODE_SYSTEM (operation);
       ops_w = GUI_SDATA (operation);
     }
+  doc_w = GUI_SDATA (document);
   result = (intptr_t) ShellExecuteW (NULL, ops_w, doc_w, params_w,
 				     GUI_SDATA (current_dir),
 				     (FIXNUMP (show_flag)
@@ -8355,7 +8353,7 @@ a ShowWindow flag:
   handler = Ffind_file_name_handler (absdoc, Qfile_exists_p);
   if (NILP (handler))
     {
-      Lisp_Object absdoc_encoded = ENCODE_FILE (absdoc);
+      Lisp_Object absdoc_encoded = Fcopy_sequence (ENCODE_FILE (absdoc));
 
       if (faccessat (AT_FDCWD, SSDATA (absdoc_encoded), F_OK, AT_EACCESS) == 0)
 	{
@@ -9203,8 +9201,8 @@ The coordinates X and Y are interpreted in pixels relative to a position
   UINT trail_num = 0;
   BOOL ret = false;
 
-  CHECK_TYPE_RANGED_INTEGER (int, x);
-  CHECK_TYPE_RANGED_INTEGER (int, y);
+  int xval = check_integer_range (x, INT_MIN, INT_MAX);
+  int yval = check_integer_range (y, INT_MIN, INT_MAX);
 
   block_input ();
   /* When "mouse trails" are in effect, moving the mouse cursor
@@ -9213,7 +9211,7 @@ The coordinates X and Y are interpreted in pixels relative to a position
   if (os_subtype == OS_NT
       && w32_major_version + w32_minor_version >= 6)
     ret = SystemParametersInfo (SPI_GETMOUSETRAILS, 0, &trail_num, 0);
-  SetCursorPos (XFIXNUM (x), XFIXNUM (y));
+  SetCursorPos (xval, yval);
   if (ret)
     SystemParametersInfo (SPI_SETMOUSETRAILS, trail_num, NULL, 0);
   unblock_input ();

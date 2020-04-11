@@ -138,7 +138,7 @@ updated.  Set this variable to t to disable the check.")
 
 (defun dns-write (spec &optional tcp-p)
   "Write a DNS packet according to SPEC.
-If TCP-P, the first two bytes of the package with be the length field."
+If TCP-P, the first two bytes of the packet will be the length field."
   (with-temp-buffer
     (set-buffer-multibyte nil)
     (dns-write-bytes (dns-get 'id spec) 2)
@@ -189,13 +189,15 @@ If TCP-P, the first two bytes of the package with be the length field."
       (dns-write-bytes (buffer-size) 2))
     (buffer-string)))
 
-(defun dns-read (packet)
+(defun dns-read (packet &optional tcp-p)
   (with-temp-buffer
     (set-buffer-multibyte nil)
     (let ((spec nil)
           queries answers authorities additionals)
       (insert packet)
-      (goto-char (point-min))
+      ;; When using TCP we have a 2 byte length field to ignore.
+      (goto-char (+ (point-min)
+                    (if tcp-p 2 0)))
       (push (list 'id (dns-read-bytes 2)) spec)
       (let ((byte (dns-read-bytes 1)))
         (push (list 'response-p (if (zerop (logand byte (ash 1 7))) nil t))
@@ -315,8 +317,8 @@ If TCP-P, the first two bytes of the package with be the length field."
 (defun dns-set-servers ()
   "Set `dns-servers' to a list of DNS servers or nil if none are found.
 Parses \"/etc/resolv.conf\" or calls \"nslookup\"."
+  (setq dns-servers nil)
   (or (when (file-exists-p "/etc/resolv.conf")
-	(setq dns-servers nil)
 	(with-temp-buffer
 	  (insert-file-contents "/etc/resolv.conf")
 	  (goto-char (point-min))
@@ -327,9 +329,9 @@ Parses \"/etc/resolv.conf\" or calls \"nslookup\"."
 	(with-temp-buffer
 	  (call-process "nslookup" nil t nil "localhost")
 	  (goto-char (point-min))
-	  (re-search-forward
-	   "^Address:[ \t]*\\([0-9]+\\.[0-9]+\\.[0-9]+\\.[0-9]+\\)" nil t)
-	  (setq dns-servers (list (match-string 1))))))
+          (when (re-search-forward
+	   "^Address:[ \t]*\\([0-9]+\\.[0-9]+\\.[0-9]+\\.[0-9]+\\|[[:xdigit:]:]*\\)" nil t)
+	      (setq dns-servers (list (match-string 1)))))))
   (when (fboundp 'network-interface-list)
     (setq dns-servers-valid-for-interfaces (network-interface-list))))
 
@@ -357,7 +359,9 @@ Parses \"/etc/resolv.conf\" or calls \"nslookup\"."
   `(let ((server ,server)
 	 (coding-system-for-read 'binary)
 	 (coding-system-for-write 'binary))
-     (if (fboundp 'make-network-process)
+     (if (and
+          (fboundp 'make-network-process)
+          (featurep 'make-network-process '(:type datagram)))
 	 (make-network-process
 	  :name "dns"
 	  :coding 'binary
@@ -365,9 +369,9 @@ Parses \"/etc/resolv.conf\" or calls \"nslookup\"."
 	  :host server
 	  :service "domain"
 	  :type 'datagram)
-       ;; Older versions of Emacs doesn't have
-       ;; `make-network-process', so we fall back on opening a TCP
-       ;; connection to the DNS server.
+       ;; Older versions of Emacs do not have `make-network-process',
+       ;; and on MS-Windows datagram sockets are not supported, so we
+       ;; fall back on opening a TCP connection to the DNS server.
        (open-network-stream "dns" (current-buffer) server "domain"))))
 
 (defvar dns-cache (make-vector 4096 0))
@@ -400,26 +404,30 @@ If REVERSEP, look up an IP address."
 	  type 'PTR))
 
   (if (not dns-servers)
-      (message "No DNS server configuration found")
+      (progn
+        (message "No DNS server configuration found")
+        nil)
     (with-temp-buffer
       (set-buffer-multibyte nil)
-      (let ((process (condition-case ()
-                         (dns-make-network-process (car dns-servers))
-                       (error
-                        (message
-                         "dns: Got an error while trying to talk to %s"
-                         (car dns-servers))
-                        nil)))
+      (let* ((process (condition-case ()
+                          (dns-make-network-process (car dns-servers))
+                        (error
+                         (message
+                          "dns: Got an error while trying to talk to %s"
+                          (car dns-servers))
+                         nil)))
             (step 100)
             (times (* dns-timeout 1000))
-            (id (random 65000)))
+            (id (random 65000))
+            (tcp-p (and process (not (process-contact process :type)))))
         (when process
           (process-send-string
            process
            (dns-write `((id ,id)
                         (opcode query)
                         (queries ((,name (type ,type))))
-                        (recursion-desired-p t))))
+                        (recursion-desired-p t))
+                      tcp-p))
           (while (and (zerop (buffer-size))
                       (> times 0))
 	    (let ((step-sec (/ step 1000.0)))
@@ -432,7 +440,7 @@ If REVERSEP, look up an IP address."
           (when (and (>= (buffer-size) 2)
                      ;; We had a time-out.
                      (> times 0))
-            (let ((result (dns-read (buffer-string))))
+            (let ((result (dns-read (buffer-string) tcp-p)))
               (if fullp
                   result
                 (let ((answer (car (dns-get 'answers result))))

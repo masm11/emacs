@@ -224,7 +224,9 @@ Only used for files that Emacs can't find.")
 (defvar gdb-source-file-list nil
   "List of source files for the current executable.")
 (defvar gdb-first-done-or-error t)
-(defvar gdb-source-window nil)
+(defvar gdb-source-window-list nil
+  "List of windows used for displaying source files.
+Sorted in most-recently-visited-first order.")
 (defvar gdb-inferior-status nil)
 (defvar gdb-continuation nil)
 (defvar gdb-supports-non-stop nil)
@@ -645,6 +647,21 @@ Note that this variable only takes effect when variable
   :group 'gdb
   :version "28.1")
 
+(defcustom gdb-display-source-buffer-action '(nil . ((inhibit-same-window . t)))
+  "`display-buffer' action used when GDB displays a source buffer."
+  :type 'list
+  :group 'gdb
+  :version "28.1")
+
+(defcustom gdb-max-source-window-count 1
+  "Maximum number of source windows to use.
+Until there are such number of source windows on screen, GDB
+tries to open a new window when visiting a new source file; after
+that GDB starts to reuse existing source windows."
+  :type 'number
+  :group 'gdb
+  :version "28.1")
+
 (defvar gdbmi-debug-mode nil
   "When non-nil, print the messages sent/received from GDB/MI in *Messages*.")
 
@@ -984,7 +1001,7 @@ detailed description of this mode.
 	gdb-first-done-or-error t
 	gdb-buffer-fringe-width (car (window-fringes))
 	gdb-debug-log nil
-	gdb-source-window nil
+	gdb-source-window-list nil
 	gdb-inferior-status nil
 	gdb-continuation nil
         gdb-buf-publisher '()
@@ -1850,7 +1867,8 @@ static char *magick[] = {
    "\\|def\\(i\\(ne?\\)?\\)?\\|doc\\(u\\(m\\(e\\(nt?\\)?\\)?\\)?\\)?\\|"
    gdb-python-guile-commands-regexp
    "\\|while-stepping\\|stepp\\(i\\(ng?\\)?\\)?\\|ws\\|actions"
-   "\\)\\([[:blank:]]+\\([^[:blank:]]*\\)\\)?$")
+   "\\|expl\\(o\\(r\\e?\\)?\\)?"
+   "\\)\\([[:blank:]]+\\([^[:blank:]]*\\)\\)*$")
   "Regexp matching GDB commands that enter a recursive reading loop.
 As long as GDB is in the recursive reading loop, it does not expect
 commands to be prefixed by \"-interpreter-exec console\".")
@@ -2069,17 +2087,36 @@ is running."
 ;; GDB frame (after up, down etc).  If no GDB frame is visible but the last
 ;; visited breakpoint is, use that window.
 (defun gdb-display-source-buffer (buffer)
-  (let* ((last-window (if gud-last-last-frame
-                          (get-buffer-window
-                           (gud-find-file (car gud-last-last-frame)))))
-	 (source-window (or last-window
-			    (if (and gdb-source-window
-				     (window-live-p gdb-source-window))
-				gdb-source-window))))
-    (when source-window
-      (setq gdb-source-window source-window)
-      (set-window-buffer source-window buffer))
-    source-window))
+  "Find a window to display BUFFER.
+Always find a window to display buffer, and return it."
+  ;; This function doesn't take care of setting up source window(s) at startup,
+  ;; that's handled by `gdb-setup-windows' (if `gdb-many-windows' is non-nil).
+  ;; If `buffer' is already shown in a window, use that window.
+  (or (get-buffer-window buffer)
+      (progn
+        ;; First, update the window list.
+        (setq gdb-source-window-list
+              (cl-remove-duplicates
+               (cl-remove-if-not
+                (lambda (win)
+                  (and (window-live-p win)
+                       (eq (window-frame win)
+                           (selected-frame))))
+                gdb-source-window-list)))
+        ;; Should we create a new window or reuse one?
+        (if (> gdb-max-source-window-count
+               (length gdb-source-window-list))
+            ;; Create a new window, push it to window list and return it.
+            (car (push (display-buffer buffer gdb-display-source-buffer-action)
+                       gdb-source-window-list))
+          ;; Reuse a window, we use the oldest window and put that to
+          ;; the front of the window list.
+          (let ((last-win (car (last gdb-source-window-list)))
+                (rest (butlast gdb-source-window-list)))
+            (set-window-buffer last-win buffer)
+            (setq gdb-source-window-list
+                  (cons last-win rest))
+            last-win)))))
 
 
 (defun gdbmi-start-with (str offset match)
@@ -2508,7 +2545,13 @@ file names include non-ASCII characters."
 
   gdb-filter-output)
 
-(defun gdb-gdb (_output-field))
+(defun gdb-gdb (_output-field)
+  ;; This is needed because the "explore" command is not ended by the
+  ;; likes of "end" or "quit", but instead by a RET at the approriate
+  ;; place, and we know we have exited "explore" when we get the
+  ;; "(gdb)" prompt.
+  (and (> gdb-control-level 0)
+       (setq gdb-control-level (1- gdb-control-level))))
 
 (defun gdb-shell (output-field)
   (setq gdb-filter-output
@@ -4064,9 +4107,7 @@ DOC is an optional documentation string."
               (let* ((buffer (find-file-noselect
                               (if (file-exists-p file) file
                                 (cdr (assoc bptno gdb-location-alist)))))
-                     (window (or (gdb-display-source-buffer buffer)
-                                 (display-buffer buffer))))
-                (setq gdb-source-window window)
+                     (window (gdb-display-source-buffer buffer)))
                 (with-current-buffer buffer
                   (goto-char (point-min))
                   (forward-line (1- (string-to-number line)))
@@ -4715,7 +4756,7 @@ file\" where the GDB session starts (see `gdb-main-file')."
       (select-window win2)
       (set-window-buffer win2 (or (gdb-get-source-buffer)
                                   (list-buffers-noselect)))
-      (setq gdb-source-window (selected-window))
+      (setq gdb-source-window-list (list (selected-window)))
       (let ((win4 (split-window-right)))
         (gdb-set-window-buffer
          (gdb-get-buffer-create 'gdb-inferior-io) nil win4))
@@ -4791,7 +4832,8 @@ You can later restore this configuration from that file by
                           (error "Unrecognized gdb buffer mode: %s" major-mode)))
                      ;; Command buffer.
                      ((derived-mode-p 'gud-mode) 'command)
-                     ((equal (selected-window) gdb-source-window) 'source)))
+                     ;; Consider everything else as source buffer.
+                     (t 'source)))
               (with-window-non-dedicated nil
                 (set-window-buffer nil placeholder)
                 (set-window-prev-buffers (selected-window) nil)
@@ -4834,7 +4876,7 @@ FILE should be a window configuration file saved by
               (pcase buffer-type
                 ('source (when source-buffer
                            (set-window-buffer nil source-buffer)
-                           (setq gdb-source-window (selected-window))))
+                           (push (selected-window) gdb-source-window-list)))
                 ('command (switch-to-buffer gud-comint-buffer))
                 (_ (let ((buffer (gdb-get-buffer-create buffer-type)))
                      (with-window-non-dedicated nil
@@ -4875,7 +4917,7 @@ This arrangement depends on the values of variable
          (if gud-last-last-frame
              (gud-find-file (car gud-last-last-frame))
            (gud-find-file gdb-main-file)))
-        (setq gdb-source-window win)))))
+        (setq gdb-source-window-list (list win))))))
 
 ;; Called from `gud-sentinel' in gud.el:
 (defun gdb-reset ()
