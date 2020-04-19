@@ -33,17 +33,8 @@
 ;;; Commentary:
 
 ;; ERC is a powerful, modular, and extensible IRC client for Emacs.
-
-;; For more information, see the following URLs:
-;; * https://sv.gnu.org/projects/erc/
-;; * https://www.emacswiki.org/emacs/ERC
-
-
-
-;; As of 2006-06-13, ERC development is now hosted on Savannah
-;; (https://sv.gnu.org/projects/erc).  I invite everyone who wants to
-;; hack on it to contact me <mwolson@gnu.org> in order to get write
-;; access to the shared Arch archive.
+;; For more information, visit the ERC page at
+;; <https://www.gnu.org/software/emacs/erc.html>.
 
 ;; Configuration:
 
@@ -75,12 +66,12 @@
 (eval-when-compile (require 'subr-x))
 
 (defvar erc-official-location
-  "https://www.emacswiki.org/emacs/ERC (mailing list: emacs-erc@gnu.org)"
+  "https://www.gnu.org/software/emacs/erc.html (mailing list: emacs-erc@gnu.org)"
   "Location of the ERC client on the Internet.")
 
 (defgroup erc nil
   "Emacs Internet Relay Chat client."
-  :link '(url-link "https://www.emacswiki.org/emacs/ERC")
+  :link '(url-link "https://www.gnu.org/software/emacs/erc.html")
   :link '(custom-manual "(erc) Top")
   :prefix "erc-"
   :group 'applications)
@@ -1762,29 +1753,38 @@ nil."
        res)))
 
 (define-obsolete-function-alias 'erc-iswitchb 'erc-switch-to-buffer "25.1")
+(defun erc--switch-to-buffer (&optional arg)
+  (read-buffer "Switch to ERC buffer: "
+	       (when (boundp 'erc-modified-channels-alist)
+		 (buffer-name (caar (last erc-modified-channels-alist))))
+	       t
+	       ;; Only allow ERC buffers in the same session.
+	       (let ((proc (unless arg erc-server-process)))
+		 (lambda (bufname)
+		   (let ((buf (if (consp bufname)
+				  (cdr bufname) (get-buffer bufname))))
+		     (when buf
+		       (erc--buffer-p buf (lambda () t) proc)
+		       (with-current-buffer buf
+			 (and (derived-mode-p 'erc-mode)
+			      (or (null proc)
+				  (eq proc erc-server-process))))))))))
 (defun erc-switch-to-buffer (&optional arg)
-  "Prompt for a ERC buffer to switch to.
-When invoked with prefix argument, use all erc buffers.  Without prefix
-ARG, allow only buffers related to same session server.
+  "Prompt for an ERC buffer to switch to.
+When invoked with prefix argument, use all ERC buffers.  Without
+prefix ARG, allow only buffers related to same session server.
 If `erc-track-mode' is in enabled, put the last element of
 `erc-modified-channels-alist' in front of the buffer list."
   (interactive "P")
-  (switch-to-buffer
-   (read-buffer "Switch to ERC buffer: "
-		(when (boundp 'erc-modified-channels-alist)
-		  (buffer-name (caar (last erc-modified-channels-alist))))
-		t
-		;; Only allow ERC buffers in the same session.
-		(let ((proc (unless arg erc-server-process)))
-		  (lambda (bufname)
-		    (let ((buf (if (consp bufname)
-				   (cdr bufname) (get-buffer bufname))))
-		      (when buf
-			(erc--buffer-p buf (lambda () t) proc)
-			(with-current-buffer buf
-			  (and (derived-mode-p 'erc-mode)
-			       (or (null proc)
-				   (eq proc erc-server-process)))))))))))
+  (switch-to-buffer (erc--switch-to-buffer arg)))
+(defun erc-switch-to-buffer-other-window (&optional arg)
+  "Prompt for an ERC buffer to switch to in another window.
+When invoked with prefix argument, use all ERC buffers.  Without
+prefix ARG, allow only buffers related to same session server.
+If `erc-track-mode' is in enabled, put the last element of
+`erc-modified-channels-alist' in front of the buffer list."
+  (interactive "P")
+  (switch-to-buffer-other-window (erc--switch-to-buffer arg)))
 
 (defun erc-channel-list (proc)
   "Return a list of channel buffers.

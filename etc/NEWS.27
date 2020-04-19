@@ -1647,6 +1647,16 @@ adjacent to an apostrophe, like "nick's".
 *** Set 'erc-button-url-regexp' to 'browse-url-button-regexp'
 which better handles surrounding pair of parentheses.
 
+---
+*** New function 'erc-switch-to-buffer-other-window'
+which is like 'erc-switch-to-buffer', but opens the buffer in another
+window.
+
+---
+*** New function 'erc-track-switch-buffer-other-window'
+which is like 'erc-track-switch-buffer', but opens the buffer in
+another window.
+
 ** EUDC
 
 ---
@@ -2074,12 +2084,17 @@ variable for remote shells.  It still defaults to "/bin/sh".
 ** Single shell commands
 
 +++
-*** 'shell-command-dont-erase-buffer' accepts the value 'erase' to
-force to erase the output buffer before execution of the command.
+*** New values of 'shell-command-dont-erase-buffer'.
+This option can now have the value 'erase' to force to erase the
+output buffer before execution of the command, even if the output goes
+to the current buffer.  Additional values 'beg-last-out',
+'end-last-out', and 'save-point' control where to put point in the
+output buffer after inserting the shell-command output.
 
+---
 *** The new functions 'shell-command-save-pos-or-erase' and
 'shell-command-set-point-after-cmd' control how point is handled
-between two consecutive shell commands in the same buffer.
+between two consecutive shell commands in the same output buffer.
 
 +++
 *** 'async-shell-command-width' defines the number of display columns
@@ -2238,6 +2253,10 @@ The option is useful for two reasons when verifying the signature:
     directory) method for finding the signer's key.  You need GnuPG
     2.2.17 to fully benefit from this feature.  See gpg(1) man page for
     "--auto-key-retrieve".
+
++++
+*** The 'mail-from-style' variable is now obsolete.
+According to RFC 5322, only the 'angles' value is valid.
 
 ---
 ** EasyPG
@@ -2892,8 +2911,8 @@ fixnum for such arguments.
 'desktop-buffer-misc-functions', 'desktop-buffer-modes-to-save',
 'desktop-enable', 'desktop-load-default', 'dired-omit-files-p',
 'disabled-command-hook', 'dungeon-mode-map', 'electric-nroff-mode',
-'electric-nroff-newline', 'electric-perl-terminator', 'focus-frame',
-'forward-text-line', 'generic-define-mswindows-modes',
+'electric-nroff-newline', 'electric-perl-terminator', 'executing-macro',
+'focus-frame', 'forward-text-line', 'generic-define-mswindows-modes',
 'generic-define-unix-modes', 'generic-font-lock-defaults',
 'goto-address-at-mouse', 'highlight-changes-colours',
 'ibuffer-elide-long-columns', 'ibuffer-hooks', 'ibuffer-mode-hooks',

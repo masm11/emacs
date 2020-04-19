@@ -242,7 +242,7 @@ struct text_pos
        {					\
 	 ++(POS).charpos;			\
          if (MULTIBYTE_P)			\
-	   INC_POS ((POS).bytepos);		\
+	   (POS).bytepos += next_char_len ((POS).bytepos); \
 	 else					\
 	   ++(POS).bytepos;			\
        }					\
@@ -255,7 +255,7 @@ struct text_pos
        {					\
 	 --(POS).charpos;			\
          if (MULTIBYTE_P)			\
-	   DEC_POS ((POS).bytepos);		\
+	   (POS).bytepos -= prev_char_len ((POS).bytepos); \
 	 else					\
 	   --(POS).bytepos;			\
        }					\
@@ -1866,20 +1866,6 @@ struct face_cache
   bool_bf menu_face_changed_p : 1;
 };
 
-/* Return a non-null pointer to the cached face with ID on frame F.  */
-
-#define FACE_FROM_ID(F, ID)					\
-  (eassert (UNSIGNED_CMP (ID, <, FRAME_FACE_CACHE (F)->used)),	\
-   FRAME_FACE_CACHE (F)->faces_by_id[ID])
-
-/* Return a pointer to the face with ID on frame F, or null if such a
-   face doesn't exist.  */
-
-#define FACE_FROM_ID_OR_NULL(F, ID)			\
-  (UNSIGNED_CMP (ID, <, FRAME_FACE_CACHE (F)->used)	\
-   ? FRAME_FACE_CACHE (F)->faces_by_id[ID]		\
-   : NULL)
-
 #define FACE_EXTENSIBLE_P(F)			\
   (!NILP (F->lface[LFACE_EXTEND_INDEX]))
 
@@ -3173,21 +3159,6 @@ struct image_cache
   /* Reference count (number of frames sharing this cache).  */
   ptrdiff_t refcount;
 };
-
-
-/* A non-null pointer to the image with id ID on frame F.  */
-
-#define IMAGE_FROM_ID(F, ID)					\
-  (eassert (UNSIGNED_CMP (ID, <, FRAME_IMAGE_CACHE (F)->used)),	\
-   FRAME_IMAGE_CACHE (F)->images[ID])
-
-/* Value is a pointer to the image with id ID on frame F, or null if
-   no image with that id exists.  */
-
-#define IMAGE_OPT_FROM_ID(F, ID)				\
-  (UNSIGNED_CMP (ID, <, FRAME_IMAGE_CACHE (F)->used)		\
-   ? FRAME_IMAGE_CACHE (F)->images[ID]				\
-   : NULL)
 
 /* Size of bucket vector of image caches.  Should be prime.  */
 

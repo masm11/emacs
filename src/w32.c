@@ -3441,8 +3441,6 @@ is_fat_volume (const char * name, const char ** pPath)
 /* Convert all slashes in a filename to backslashes, and map filename
    to a valid 8.3 name if necessary.  The result is a pointer to a
    static buffer, so CAVEAT EMPTOR!  */
-const char *map_w32_filename (const char *, const char **);
-
 const char *
 map_w32_filename (const char * name, const char ** pPath)
 {
@@ -10225,6 +10223,10 @@ term_ntproc (int ignored)
   term_winsock ();
 
   term_w32select ();
+
+#if HAVE_NATIVE_IMAGE_API
+  w32_gdiplus_shutdown ();
+#endif
 }
 
 void

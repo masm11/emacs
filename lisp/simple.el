@@ -3474,20 +3474,22 @@ This affects `shell-command' and `async-shell-command'."
   :version "27.1")
 
 (defcustom shell-command-dont-erase-buffer nil
-  "Control if the output buffer is erased before the command.
+  "Whether to erase the output buffer before executing shell command.
 
 A nil value erases the output buffer before execution of the
 shell command, except when the output buffer is the current one.
 
 The value `erase' ensures the output buffer is erased before
-execution of the shell command.
+execution of the shell command even if it is the current buffer.
 
-Other non-nil values prevent the output buffer from being erased and
-set the point after execution of the shell command.
+Other non-nil values prevent the output buffer from being erased; they
+also reposition point in the shell output buffer after execution of the
+shell command, except when the output buffer is the current buffer.
 
-The value `beg-last-out' sets point at the beginning of the output,
-`end-last-out' sets point at the end of the buffer, `save-point'
-restores the buffer position before the command."
+The value `beg-last-out' sets point at the beginning of the last
+output, `end-last-out' sets point at the end of the last output,
+and `save-point' restores the buffer position as it was before the
+shell command."
   :type '(choice
           (const :tag "Erase output buffer if not the current one" nil)
           (const :tag "Always erase output buffer" erase)
@@ -3517,9 +3519,12 @@ See `shell-command-dont-erase-buffer'."
     ;; if some text has a non-nil read-only property,
     ;; which comint sometimes adds for prompts.
     (setq pos
-          (cond ((eq sym 'save-point) (point))
-                ((eq sym 'beg-last-out) (point-max))
-                ;;((not sym)
+          (cond ((eq sym 'save-point)
+                 (if (not output-to-current-buffer)
+                     (point)))
+                ((eq sym 'beg-last-out)
+                 (if (not output-to-current-buffer)
+                     (point-max)))
                 ((or (eq sym 'erase)
                      (and (null sym) (not output-to-current-buffer)))
                  (let ((inhibit-read-only t))
@@ -3634,9 +3639,14 @@ says to put the output in some other buffer.
 If OUTPUT-BUFFER is a buffer or buffer name, erase that buffer
 and insert the output there; a non-nil value of
 `shell-command-dont-erase-buffer' prevents the buffer from being
-erased.  If OUTPUT-BUFFER is not a buffer and not nil, insert the
+erased.  If OUTPUT-BUFFER is not a buffer and not nil (which happens
+interactively when the prefix argument is given), insert the
 output in current buffer after point leaving mark after it.  This
 cannot be done asynchronously.
+
+The user option `shell-command-dont-erase-buffer', which see, controls
+whether the output buffer is erased and where to put point after
+the shell command.
 
 If the command terminates without error, but generates output,
 and you did not specify \"insert it in the current buffer\",
@@ -3725,8 +3735,7 @@ impose the use of a shell (with its need to quote arguments)."
 	    ;; because we inserted text.
 	    (goto-char (prog1 (mark t)
 			 (set-marker (mark-marker) (point)
-				     (current-buffer))))
-            (shell-command-set-point-after-cmd))
+				     (current-buffer)))))
 	;; Output goes in a separate buffer.
 	;; Preserve the match data in case called from a program.
         ;; FIXME: It'd be ridiculous for an Elisp function to call
@@ -5146,10 +5155,11 @@ property, in the way that `yank' does."
 
 (defun yank (&optional arg)
   "Reinsert (\"paste\") the last stretch of killed text.
-More precisely, reinsert the most recent kill, which is the
-stretch of killed text most recently killed OR yanked.  Put point
-at the end, and set mark at the beginning without activating it.
-With just \\[universal-argument] as argument, put point at beginning, and mark at end.
+More precisely, reinsert the most recent kill, which is the stretch of
+text most recently killed OR yanked, as returned by `current-kill' (which
+see).  Put point at the end, and set mark at the beginning without
+activating it. With just \\[universal-argument] as argument, put point
+at beginning, and mark at end.
 With argument N, reinsert the Nth most recent kill.
 
 This command honors the `yank-handled-properties' and
@@ -8057,8 +8067,12 @@ OTHER-HEADERS is an alist specifying additional
 header fields.  Elements look like (HEADER . VALUE) where both
 HEADER and VALUE are strings.
 
-CONTINUE, if non-nil, says to continue editing a message already
-being composed.  Interactively, CONTINUE is the prefix argument.
+By default, if an unsent message is already being composed, this
+command will ask whether to erase the unsent message, and will not
+start a new message if the user doesn't allow erasing.  However, if
+CONTINUE is non-nil, it means to continue editing a message already
+being composed without asking.  Interactively, CONTINUE is the prefix
+argument.
 
 SWITCH-FUNCTION, if non-nil, is a function to use to
 switch to and display the buffer used for mail composition.

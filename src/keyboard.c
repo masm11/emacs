@@ -2279,7 +2279,7 @@ read_decoded_event_from_main_queue (struct timespec *end_time,
 		      eassert (coding->carryover_bytes == 0);
 		      n = 0;
 		      while (n < coding->produced_char)
-			events[n++] = make_fixnum (STRING_CHAR_ADVANCE (p));
+			events[n++] = make_fixnum (string_char_advance (&p));
 		    }
 		}
 	    }
@@ -2927,13 +2927,11 @@ read_char (int commandflag, Lisp_Object map,
 	goto exit;
 
       if ((STRINGP (KVAR (current_kboard, Vkeyboard_translate_table))
-	   && UNSIGNED_CMP (XFIXNAT (c), <,
-			    SCHARS (KVAR (current_kboard,
-					  Vkeyboard_translate_table))))
+	   && XFIXNAT (c) < SCHARS (KVAR (current_kboard,
+					  Vkeyboard_translate_table)))
 	  || (VECTORP (KVAR (current_kboard, Vkeyboard_translate_table))
-	      && UNSIGNED_CMP (XFIXNAT (c), <,
-			       ASIZE (KVAR (current_kboard,
-					    Vkeyboard_translate_table))))
+	      && XFIXNAT (c) < ASIZE (KVAR (current_kboard,
+					    Vkeyboard_translate_table)))
 	  || (CHAR_TABLE_P (KVAR (current_kboard, Vkeyboard_translate_table))
 	      && CHARACTERP (c)))
 	{
@@ -10476,9 +10474,8 @@ Internal use only.  */)
   this_command_key_count = 0;
   this_single_command_key_start = 0;
 
-  int charidx = 0, byteidx = 0;
-  int key0;
-  FETCH_STRING_CHAR_ADVANCE (key0, keys, charidx, byteidx);
+  ptrdiff_t charidx = 0, byteidx = 0;
+  int key0 = fetch_string_char_advance (keys, &charidx, &byteidx);
   if (CHAR_BYTE8_P (key0))
     key0 = CHAR_TO_BYTE8 (key0);
 
@@ -10490,8 +10487,7 @@ Internal use only.  */)
     add_command_key (make_fixnum (key0));
   for (ptrdiff_t i = 1; i < SCHARS (keys); i++)
     {
-      int key_i;
-      FETCH_STRING_CHAR_ADVANCE (key_i, keys, charidx, byteidx);
+      int key_i = fetch_string_char_advance (keys, &charidx, &byteidx);
       if (CHAR_BYTE8_P (key_i))
 	key_i = CHAR_TO_BYTE8 (key_i);
       add_command_key (make_fixnum (key_i));

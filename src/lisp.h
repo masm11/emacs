@@ -597,7 +597,7 @@ extern Lisp_Object make_biguint (uintmax_t);
 extern uintmax_t check_uinteger_max (Lisp_Object, uintmax_t);
 
 /* Defined in chartab.c.  */
-extern Lisp_Object char_table_ref (Lisp_Object, int);
+extern Lisp_Object char_table_ref (Lisp_Object, int) ATTRIBUTE_PURE;
 extern void char_table_set (Lisp_Object, int, Lisp_Object);
 
 /* Defined in data.c.  */
@@ -1923,18 +1923,12 @@ memclear (void *p, ptrdiff_t nbytes)
   (offsetof (type, lastlispfield) + word_size < header_size		\
    ? 0 : (offsetof (type, lastlispfield) + word_size - header_size) / word_size)
 
-/* Compute A OP B, using the unsigned comparison operator OP.  A and B
-   should be integer expressions.  This is not the same as
-   mathematical comparison; for example, UNSIGNED_CMP (0, <, -1)
-   returns true.  For efficiency, prefer plain unsigned comparison if A
-   and B's sizes both fit (after integer promotion).  */
-#define UNSIGNED_CMP(a, op, b)						\
-  (max (sizeof ((a) + 0), sizeof ((b) + 0)) <= sizeof (unsigned)	\
-   ? ((a) + (unsigned) 0) op ((b) + (unsigned) 0)			\
-   : ((a) + (uintmax_t) 0) op ((b) + (uintmax_t) 0))
-
 /* True iff C is an ASCII character.  */
-#define ASCII_CHAR_P(c) UNSIGNED_CMP (c, <, 0x80)
+INLINE bool
+ASCII_CHAR_P (intmax_t c)
+{
+  return 0 <= c && c < 0x80;
+}
 
 /* A char-table is a kind of vectorlike, with contents are like a
    vector but with a few other slots.  For some purposes, it makes

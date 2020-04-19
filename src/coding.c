@@ -643,7 +643,7 @@ growable_destination (struct coding_system *coding)
 	else						\
 	  {						\
 	    src--;					\
-	    c = - string_char (src, &src, NULL);	\
+	    c = - string_char_advance (&src);		\
 	    record_conversion_result			\
 	      (coding, CODING_RESULT_INVALID_SRC);	\
 	  }						\
@@ -728,7 +728,7 @@ growable_destination (struct coding_system *coding)
 	unsigned ch = (c);		\
 	if (ch >= 0x80)			\
 	  ch = BYTE8_TO_CHAR (ch);	\
-	CHAR_STRING_ADVANCE (ch, dst);	\
+	dst += CHAR_STRING (ch, dst);	\
       }					\
     else				\
       *dst++ = (c);			\
@@ -747,11 +747,11 @@ growable_destination (struct coding_system *coding)
 	ch = (c1);			\
 	if (ch >= 0x80)			\
 	  ch = BYTE8_TO_CHAR (ch);	\
-	CHAR_STRING_ADVANCE (ch, dst);	\
+	dst += CHAR_STRING (ch, dst);	\
 	ch = (c2);			\
 	if (ch >= 0x80)			\
 	  ch = BYTE8_TO_CHAR (ch);	\
-	CHAR_STRING_ADVANCE (ch, dst);	\
+	dst += CHAR_STRING (ch, dst);	\
       }					\
     else				\
       {					\
@@ -884,18 +884,18 @@ record_conversion_result (struct coding_system *coding,
 
 
 /* Store multibyte form of the character C in P, and advance P to the
-   end of the multibyte form.  This used to be like CHAR_STRING_ADVANCE
+   end of the multibyte form.  This used to be like adding CHAR_STRING
    without ever calling MAYBE_UNIFY_CHAR, but nowadays we don't call
-   MAYBE_UNIFY_CHAR in CHAR_STRING_ADVANCE.  */
+   MAYBE_UNIFY_CHAR in CHAR_STRING.  */
 
-#define CHAR_STRING_ADVANCE_NO_UNIFY(c, p)  CHAR_STRING_ADVANCE(c, p)
+#define CHAR_STRING_ADVANCE_NO_UNIFY(c, p) ((p) += CHAR_STRING (c, p))
 
 /* Return the character code of character whose multibyte form is at
    P, and advance P to the end of the multibyte form.  This used to be
-   like STRING_CHAR_ADVANCE without ever calling MAYBE_UNIFY_CHAR, but
-   nowadays STRING_CHAR_ADVANCE doesn't call MAYBE_UNIFY_CHAR.  */
+   like string_char_advance without ever calling MAYBE_UNIFY_CHAR, but
+   nowadays string_char_advance doesn't call MAYBE_UNIFY_CHAR.  */
 
-#define STRING_CHAR_ADVANCE_NO_UNIFY(p) STRING_CHAR_ADVANCE(p)
+#define STRING_CHAR_ADVANCE_NO_UNIFY(p) string_char_advance (&(p))
 
 /* Set coding->source from coding->src_object.  */
 
@@ -5131,7 +5131,7 @@ decode_coding_ccl (struct coding_system *coding)
 	  while (i < 1024 && p < src_end)
 	    {
 	      source_byteidx[i] = p - src;
-	      source_charbuf[i++] = STRING_CHAR_ADVANCE (p);
+	      source_charbuf[i++] = string_char_advance (&p);
 	    }
 	  source_byteidx[i] = p - src;
 	}
@@ -5308,15 +5308,10 @@ encode_coding_raw_text (struct coding_system *coding)
 	      }
 	    else
 	      {
-		unsigned char str[MAX_MULTIBYTE_LENGTH], *p0 = str, *p1 = str;
-
-		CHAR_STRING_ADVANCE (c, p1);
-		do
-		  {
-		    EMIT_ONE_BYTE (*p0);
-		    p0++;
-		  }
-		while (p0 < p1);
+		unsigned char str[MAX_MULTIBYTE_LENGTH];
+		int len = CHAR_STRING (c, str);
+		for (int i = 0; i < len; i++)
+		  EMIT_ONE_BYTE (str[i]);
 	      }
 	  }
       else
@@ -5342,7 +5337,7 @@ encode_coding_raw_text (struct coding_system *coding)
 	      else if (CHAR_BYTE8_P (c))
 		*dst++ = CHAR_TO_BYTE8 (c);
 	      else
-		CHAR_STRING_ADVANCE (c, dst);
+		dst += CHAR_STRING (c, dst);
 	    }
 	}
       else
@@ -7457,7 +7452,7 @@ decode_coding (struct coding_system *coding)
 	      if (coding->src_multibyte
 		  && CHAR_BYTE8_HEAD_P (*src) && nbytes > 0)
 		{
-		  c = STRING_CHAR_ADVANCE (src);
+		  c = string_char_advance (&src);
 		  nbytes--;
 		}
 	      else
@@ -7551,10 +7546,8 @@ handle_composition_annotation (ptrdiff_t pos, ptrdiff_t limit,
 		  len = SCHARS (components);
 		  i = i_byte = 0;
 		  while (i < len)
-		    {
-		      FETCH_STRING_CHAR_ADVANCE (*buf, components, i, i_byte);
-		      buf++;
-		    }
+		    *buf++ = fetch_string_char_advance (components,
+							&i, &i_byte);
 		}
 	      else if (FIXNUMP (components))
 		{
@@ -7715,7 +7708,7 @@ consume_chars (struct coding_system *coding, Lisp_Object translation_table,
 
 	  lookup_buf[0] = c;
 	  for (i = 1; i < max_lookup && p < src_end; i++)
-	    lookup_buf[i] = STRING_CHAR_ADVANCE (p);
+	    lookup_buf[i] = string_char_advance (&p);
 	  lookup_buf_end = lookup_buf + i;
 	  trans = get_translation (trans, lookup_buf, lookup_buf_end,
 				   &from_nchars);
@@ -9075,7 +9068,7 @@ DEFUN ("find-coding-systems-region-internal",
 	p++;
       else
 	{
-	  c = STRING_CHAR_ADVANCE (p);
+	  c = string_char_advance (&p);
 	  if (!NILP (char_table_ref (work_table, c)))
 	    /* This character was already checked.  Ignore it.  */
 	    continue;
@@ -9208,7 +9201,7 @@ to the string and treated as in `substring'.  */)
 	  p = GAP_END_ADDR;
 	}
 
-      c = STRING_CHAR_ADVANCE (p);
+      c = string_char_advance (&p);
       if (! (ASCII_CHAR_P (c) && ascii_compatible)
 	  && ! char_charset (translate_char (translation_table, c),
 			     charset_list, NULL))
@@ -9326,7 +9319,7 @@ is nil.  */)
 	p++;
       else
 	{
-	  c = STRING_CHAR_ADVANCE (p);
+	  c = string_char_advance (&p);
 
 	  charset_map_loaded = 0;
 	  for (tail = list; CONSP (tail); tail = XCDR (tail))
@@ -9559,10 +9552,7 @@ code_convert_string (Lisp_Object string, Lisp_Object coding_system,
 
 
 /* Encode or decode STRING according to CODING_SYSTEM.
-   Do not set Vlast_coding_system_used.
-
-   This function is called only from macros DECODE_FILE and
-   ENCODE_FILE, thus we ignore character composition.  */
+   Do not set Vlast_coding_system_used.  */
 
 Lisp_Object
 code_convert_string_norecord (Lisp_Object string, Lisp_Object coding_system,
@@ -9731,7 +9721,7 @@ encode_string_utf_8 (Lisp_Object string, Lisp_Object buffer,
 	      || (len == 2 ? ! CHAR_BYTE8_HEAD_P (c)
 		  : (EQ (handle_over_uni, Qt)
 		     || (len == 4
-			 && string_char (p, NULL, NULL) <= MAX_UNICODE_CHAR))))
+			 && STRING_CHAR (p) <= MAX_UNICODE_CHAR))))
 	    {
 	      p += len;
 	      continue;
@@ -10013,8 +10003,7 @@ decode_string_utf_8 (Lisp_Object string, const char *str, ptrdiff_t str_len,
 		  && (len == 3
 		      || (UTF_8_EXTRA_OCTET_P (p[3])
 			  && len == 4
-			  && (string_char (p, NULL, NULL)
-			      <= MAX_UNICODE_CHAR))))))
+			  && STRING_CHAR (p) <= MAX_UNICODE_CHAR)))))
 	{
 	  p += len;
 	  continue;
@@ -10151,8 +10140,7 @@ decode_string_utf_8 (Lisp_Object string, const char *str, ptrdiff_t str_len,
 		   mlen++);
 	      if (mlen == len
 		  && (len <= 3
-		      || (len == 4
-			  && string_char (p, NULL, NULL) <= MAX_UNICODE_CHAR)
+		      || (len == 4 && STRING_CHAR (p) <= MAX_UNICODE_CHAR)
 		      || EQ (handle_over_uni, Qt)))
 		{
 		  p += len;
@@ -10332,6 +10320,16 @@ DEFUN ("internal-decode-string-utf-8", Finternal_decode_string_utf_8,
 
 #endif	/* ENABLE_UTF_8_CONVERTER_TEST */
 
+/* Encode or decode STRING using CODING_SYSTEM, with the possibility of
+   returning STRING itself if it equals the result.
+   Do not set Vlast_coding_system_used.  */
+static Lisp_Object
+convert_string_nocopy (Lisp_Object string, Lisp_Object coding_system,
+                       bool encodep)
+{
+  return code_convert_string (string, coding_system, Qt, encodep, 1, 1);
+}
+
 /* Encode or decode a file name, to or from a unibyte string suitable
    for passing to C library functions.  */
 Lisp_Object
@@ -10342,14 +10340,13 @@ decode_file_name (Lisp_Object fname)
      converts the file names either to UTF-16LE or to the system ANSI
      codepage internally, depending on the underlying OS; see w32.c.  */
   if (! NILP (Fcoding_system_p (Qutf_8)))
-    return code_convert_string_norecord (fname, Qutf_8, 0);
+    return convert_string_nocopy (fname, Qutf_8, 0);
   return fname;
 #else  /* !WINDOWSNT */
   if (! NILP (Vfile_name_coding_system))
-    return code_convert_string_norecord (fname, Vfile_name_coding_system, 0);
+    return convert_string_nocopy (fname, Vfile_name_coding_system, 0);
   else if (! NILP (Vdefault_file_name_coding_system))
-    return code_convert_string_norecord (fname,
-					 Vdefault_file_name_coding_system, 0);
+    return convert_string_nocopy (fname, Vdefault_file_name_coding_system, 0);
   else
     return fname;
 #endif
@@ -10369,14 +10366,13 @@ encode_file_name (Lisp_Object fname)
      converts the file names either to UTF-16LE or to the system ANSI
      codepage internally, depending on the underlying OS; see w32.c.  */
   if (! NILP (Fcoding_system_p (Qutf_8)))
-    return code_convert_string_norecord (fname, Qutf_8, 1);
+    return convert_string_nocopy (fname, Qutf_8, 1);
   return fname;
 #else  /* !WINDOWSNT */
   if (! NILP (Vfile_name_coding_system))
-    return code_convert_string_norecord (fname, Vfile_name_coding_system, 1);
+    return convert_string_nocopy (fname, Vfile_name_coding_system, 1);
   else if (! NILP (Vdefault_file_name_coding_system))
-    return code_convert_string_norecord (fname,
-					 Vdefault_file_name_coding_system, 1);
+    return convert_string_nocopy (fname, Vdefault_file_name_coding_system, 1);
   else
     return fname;
 #endif
