@@ -2125,7 +2125,7 @@ pgtk_set_scroll_bar_default_height (struct frame *f)
 
 /* terms impl this instead of x-get-resource directly */
 const char *
-pgtk_get_string_resource (XrmDatabase rdb, const char *name, const char *class)
+pgtk_get_string_resource (void *rdb, const char *name, const char *class)
 {
   check_window_system (NULL);
 

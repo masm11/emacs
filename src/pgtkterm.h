@@ -164,7 +164,7 @@ struct pgtk_display_info
   Window root_window;
 
   /* Xism */
-  XrmDatabase rdb;
+  Lisp_Object rdb;
 
   /* The cursor to use for vertical scroll bars. */
   Emacs_Cursor vertical_scroll_bar_cursor;
@@ -524,7 +524,7 @@ extern char *pgtk_xlfd_to_fontname (const char *xlfd);
 /* Implemented in pgtkfns. */
 extern void pgtk_set_doc_edited (void);
 extern const char *pgtk_get_defaults_value (const char *key);
-extern const char *pgtk_get_string_resource (XrmDatabase rdb, const char *name, const char *class);
+extern const char *pgtk_get_string_resource (void *rdb, const char *name, const char *class);
 extern void pgtk_implicitly_set_name (struct frame *f, Lisp_Object arg, Lisp_Object oldval);
 
 /* Color management implemented in pgtkterm. */
