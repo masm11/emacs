@@ -128,14 +128,14 @@ I do, so no problem.
 ## My Environment
 
 - archlinux
-- gtk+ 3.24.16
-- glib2 2.64.1
+- gtk+ 3.24.18
+- glib2 2.64.2
 - gcc 9.3.0
 - wayland 1.18.0
 - wayland-protocols 1.20
 - cairo 1.17.2
 - freetype2 2.10.1
-- imagemagick 7.0.10.3
+- imagemagick 7.0.10.7
 - ibus 1.5.22
 - mozc 2.23.2815.102
 - wayfire 0a0e980
