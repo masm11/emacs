@@ -6470,20 +6470,6 @@ int pgtk_parse_color (struct frame *f, const char *color_name, Emacs_Color *colo
   return 0;
 }
 
-int
-pgtk_lisp_to_color (struct frame *f, Lisp_Object color, Emacs_Color *col)
-/* --------------------------------------------------------------------------
-     Convert a Lisp string object to a color
-   -------------------------------------------------------------------------- */
-{
-  PGTK_TRACE("pgtk_lisp_to_color");
-  if (STRINGP (color))
-    return !pgtk_parse_color (f, SSDATA (color), col);
-  else if (SYMBOLP (color))
-    return !pgtk_parse_color (f, SSDATA (SYMBOL_NAME (color)), col);
-  return 1;
-}
-
 /* On frame F, translate pixel colors to RGB values for the NCOLORS
    colors in COLORS.  On W32, we no longer try to map colors to
    a palette.  */
