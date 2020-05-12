@@ -6438,7 +6438,7 @@ pgtk_defined_color (struct frame *f,
   block_input ();
   r = xg_check_special_colors(f, name, color_def);
   if (!r)
-    r = pgtk_parse_color (name, color_def);
+    r = pgtk_parse_color (f, name, color_def);
   unblock_input ();
   return r;
 }
@@ -6451,7 +6451,7 @@ pgtk_defined_color (struct frame *f,
    and names we've actually looked up; list-colors-display is probably
    the most color-intensive case we're likely to hit.  */
 
-int pgtk_parse_color (const char *color_name, Emacs_Color *color)
+int pgtk_parse_color (struct frame *f, const char *color_name, Emacs_Color *color)
 {
   PGTK_TRACE("pgtk_parse_color: %s", color_name);
 
@@ -6471,16 +6471,16 @@ int pgtk_parse_color (const char *color_name, Emacs_Color *color)
 }
 
 int
-pgtk_lisp_to_color (Lisp_Object color, Emacs_Color *col)
+pgtk_lisp_to_color (struct frame *f, Lisp_Object color, Emacs_Color *col)
 /* --------------------------------------------------------------------------
      Convert a Lisp string object to a color
    -------------------------------------------------------------------------- */
 {
   PGTK_TRACE("pgtk_lisp_to_color");
   if (STRINGP (color))
-    return !pgtk_parse_color (SSDATA (color), col);
+    return !pgtk_parse_color (f, SSDATA (color), col);
   else if (SYMBOLP (color))
-    return !pgtk_parse_color (SSDATA (SYMBOL_NAME (color)), col);
+    return !pgtk_parse_color (f, SSDATA (SYMBOL_NAME (color)), col);
   return 1;
 }
 

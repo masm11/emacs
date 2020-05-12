@@ -139,7 +139,7 @@ x_set_foreground_color (struct frame *f, Lisp_Object arg, Lisp_Object oldval)
      which means that col may be deallocated in its unblock_input if there
      is user input, unless we also block_input.  */
   block_input ();
-  if (pgtk_lisp_to_color (arg, &col))
+  if (pgtk_lisp_to_color (f, arg, &col))
     {
       store_frame_param (f, Qforeground_color, oldval);
       unblock_input ();
@@ -167,7 +167,7 @@ x_set_background_color (struct frame *f, Lisp_Object arg, Lisp_Object oldval)
   Emacs_Color col;
 
   block_input ();
-  if (pgtk_lisp_to_color (arg, &col))
+  if (pgtk_lisp_to_color (f, arg, &col))
     {
       store_frame_param (f, Qbackground_color, oldval);
       unblock_input ();
@@ -213,14 +213,14 @@ x_set_cursor_color (struct frame *f, Lisp_Object arg, Lisp_Object oldval)
 
   if (!NILP (Vx_cursor_fore_pixel))
     {
-      if (pgtk_lisp_to_color(Vx_cursor_fore_pixel, &col))
+      if (pgtk_lisp_to_color(f, Vx_cursor_fore_pixel, &col))
 	signal_error ("Undefined color", Vx_cursor_fore_pixel);
       fore_pixel = col.pixel;
     }
   else
     fore_pixel = FRAME_BACKGROUND_PIXEL (f);
 
-  if (pgtk_lisp_to_color(arg, &col))
+  if (pgtk_lisp_to_color(f, arg, &col))
     signal_error ("Undefined color", arg);
   pixel = col.pixel;
 
@@ -817,7 +817,7 @@ pgtk_set_scroll_bar_foreground (struct frame *f, Lisp_Object new_value, Lisp_Obj
   } else if (STRINGP (new_value)) {
     Emacs_Color rgb;
 
-    if (!pgtk_parse_color (SSDATA (new_value), &rgb))
+    if (!pgtk_parse_color (f, SSDATA (new_value), &rgb))
       error ("Unknown color.");
 
     char css[64];
@@ -838,7 +838,7 @@ pgtk_set_scroll_bar_background (struct frame *f, Lisp_Object new_value, Lisp_Obj
   } else if (STRINGP (new_value)) {
     Emacs_Color rgb;
 
-    if (!pgtk_parse_color (SSDATA (new_value), &rgb))
+    if (!pgtk_parse_color (f, SSDATA (new_value), &rgb))
       error ("Unknown color.");
 
     char css[64];
@@ -2154,7 +2154,8 @@ DEFUN ("xw-color-defined-p", Fxw_color_defined_p, Sxw_color_defined_p, 1, 2, 0,
      (Lisp_Object color, Lisp_Object frame)
 {
   Emacs_Color col;
-  return pgtk_lisp_to_color (color, &col) ? Qnil : Qt;
+  struct frame *f = decode_window_system_frame(frame);
+  return pgtk_lisp_to_color (f, color, &col) ? Qnil : Qt;
 }
 
 
@@ -2163,12 +2164,13 @@ DEFUN ("xw-color-values", Fxw_color_values, Sxw_color_values, 1, 2, 0,
      (Lisp_Object color, Lisp_Object frame)
 {
   Emacs_Color col;
+  struct frame *f = decode_window_system_frame(frame);
 
   CHECK_STRING (color);
 
   block_input ();
 
-  if (pgtk_lisp_to_color (color, &col))
+  if (pgtk_lisp_to_color (f, color, &col))
     {
       unblock_input ();
       return Qnil;

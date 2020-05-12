@@ -714,7 +714,7 @@ xg_check_special_colors (struct frame *f,
 #ifndef HAVE_PGTK
     success_p = x_parse_color (f, buf, color) != 0;
 #else
-    success_p = pgtk_parse_color (buf, color) != 0;
+    success_p = pgtk_parse_color (f, buf, color) != 0;
 #endif
 #else
     GtkStyle *gsty = gtk_widget_get_style (FRAME_GTK_WIDGET (f));
