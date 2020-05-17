@@ -310,6 +310,8 @@ the default EWW buffer."
     (url-retrieve url 'eww-render
                   (list url nil (current-buffer)))))
 
+(put 'eww 'browse-url-browser-kind 'internal)
+
 (defun eww--dwim-expand-url (url)
   (setq url (string-trim url))
   (cond ((string-match-p "\\`file:/" url))
@@ -518,6 +520,10 @@ Currently this means either text/html or application/xhtml+xml."
       (plist-put eww-data :dom document)
       (let ((inhibit-read-only t)
 	    (inhibit-modification-hooks t)
+            ;; Possibly set by the caller, e.g., `eww-render' which
+            ;; preserves the old URL #target before chasing redirects.
+            (shr-target-id (or shr-target-id
+                               (url-target (url-generic-parse-url url))))
 	    (shr-external-rendering-functions
              (append
               shr-external-rendering-functions
