@@ -45,7 +45,7 @@ typedef unichar XChar2b;
 
 typedef struct _GdkCursor *Emacs_Cursor;
 
-typedef void * Color;
+typedef void *Color;
 typedef int Window;
 typedef struct _GdkDisplay Display;
 
@@ -55,9 +55,10 @@ typedef void *XrmDatabase;
 
 /* some sort of attempt to normalize rectangle handling.. seems a bit much
    for what is accomplished */
-typedef struct {
-      int x, y;
-      unsigned width, height;
+typedef struct
+{
+  int x, y;
+  unsigned width, height;
 } XRectangle;
 
 typedef double CGFloat;
@@ -90,17 +91,17 @@ typedef double CGFloat;
 #define XNegative 	0x0010
 #define YNegative 	0x0020
 
-#define USPosition	(1L << 0) /* user specified x, y */
-#define USSize		(1L << 1) /* user specified width, height */
+#define USPosition	(1L << 0)	/* user specified x, y */
+#define USSize		(1L << 1)	/* user specified width, height */
 
-#define PPosition	(1L << 2) /* program specified position */
-#define PSize		(1L << 3) /* program specified size */
-#define PMinSize	(1L << 4) /* program specified minimum size */
-#define PMaxSize	(1L << 5) /* program specified maximum size */
-#define PResizeInc	(1L << 6) /* program specified resize increments */
-#define PAspect		(1L << 7) /* program specified min, max aspect ratios */
-#define PBaseSize	(1L << 8) /* program specified base for incrementing */
-#define PWinGravity	(1L << 9) /* program specified window gravity */
+#define PPosition	(1L << 2)	/* program specified position */
+#define PSize		(1L << 3)	/* program specified size */
+#define PMinSize	(1L << 4)	/* program specified minimum size */
+#define PMaxSize	(1L << 5)	/* program specified maximum size */
+#define PResizeInc	(1L << 6)	/* program specified resize increments */
+#define PAspect		(1L << 7)	/* program specified min, max aspect ratios */
+#define PBaseSize	(1L << 8)	/* program specified base for incrementing */
+#define PWinGravity	(1L << 9)	/* program specified window gravity */
 
 
 #define NativeRectangle XRectangle
@@ -123,4 +124,4 @@ typedef double CGFloat;
    (nr).width  = (pwidth),				\
    (nr).height = (pheight))
 
-#endif  /* __PGTKGUI_H__ */
+#endif /* __PGTKGUI_H__ */
