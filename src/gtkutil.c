@@ -179,7 +179,7 @@ xg_display_open (char *display_name, GdkDisplay **dpy)
 #ifndef HAVE_PGTK
   gdpy = gdk_display_open (display_name);
 #else
-  gdpy = gdk_display_open (strlen(display_name) == 0 ? NULL : display_name);
+  gdpy = gdk_display_open (strlen (display_name) == 0 ? NULL : display_name);
 #endif
   request_sigio ();
   if (!gdpy_def && gdpy)
@@ -440,18 +440,18 @@ xg_get_image_for_pixmap (struct frame *f,
                          GtkWidget *widget,
                          GtkImage *old_widget)
 {
-  PGTK_TRACE("test########");
+  PGTK_TRACE ("test########");
 #ifdef USE_CAIRO
-  PGTK_TRACE("test########  Cairo");
+  PGTK_TRACE ("test########  Cairo");
 
   cairo_surface_t *surface;
 #else
-  PGTK_TRACE("test########  PixBuf");
+  PGTK_TRACE ("test########  PixBuf");
 
   GdkPixbuf *icon_buf;
 #endif
 
-  PGTK_TRACE("test########");
+  PGTK_TRACE ("test########");
   /* If we have a file, let GTK do all the image handling.
      This seems to be the only way to make insensitive and activated icons
      look good in all cases.  */
@@ -1021,15 +1021,15 @@ xg_frame_resized (struct frame *f, int pixelwidth, int pixelheight)
 
   width = FRAME_PIXEL_TO_TEXT_WIDTH (f, pixelwidth);
   height = FRAME_PIXEL_TO_TEXT_HEIGHT (f, pixelheight);
-  PGTK_TRACE("xg_frame_resized: pixel: %dx%d, text: %dx%d", pixelwidth, pixelheight, width, height);
+  PGTK_TRACE ("xg_frame_resized: pixel: %dx%d, text: %dx%d", pixelwidth, pixelheight, width, height);
 
   frame_size_history_add
     (f, Qxg_frame_resized, width, height, Qnil);
 
-  PGTK_TRACE("width: %d -> %d.", FRAME_TEXT_WIDTH(f), width);
-  PGTK_TRACE("height: %d -> %d.", FRAME_TEXT_HEIGHT(f), height);
-  PGTK_TRACE("pixelwidth: %d -> %d.", FRAME_PIXEL_WIDTH(f), pixelwidth);
-  PGTK_TRACE("pixelheight: %d -> %d.", FRAME_PIXEL_HEIGHT(f), pixelheight);
+  PGTK_TRACE ("width: %d -> %d.", FRAME_TEXT_WIDTH (f), width);
+  PGTK_TRACE ("height: %d -> %d.", FRAME_TEXT_HEIGHT (f), height);
+  PGTK_TRACE ("pixelwidth: %d -> %d.", FRAME_PIXEL_WIDTH (f), pixelwidth);
+  PGTK_TRACE ("pixelheight: %d -> %d.", FRAME_PIXEL_HEIGHT (f), pixelheight);
 
   if (width != FRAME_TEXT_WIDTH (f)
       || height != FRAME_TEXT_HEIGHT (f)
@@ -1344,7 +1344,7 @@ xg_create_frame_widgets (struct frame *f)
   GtkWindowType type = GTK_WINDOW_TOPLEVEL;
   char *title = 0;
 
-  PGTK_TRACE("xg_create_frame_widgets.");
+  PGTK_TRACE ("xg_create_frame_widgets.");
   block_input ();
 
 #ifndef HAVE_PGTK  // gtk_plug not found.
@@ -1505,7 +1505,7 @@ xg_create_frame_widgets (struct frame *f)
 #else
   gtk_widget_set_can_focus (wfixed, TRUE);
 #ifdef HAVE_PGTK
-  gtk_widget_grab_focus(wfixed);
+  gtk_widget_grab_focus (wfixed);
 #endif
   gtk_window_set_resizable (GTK_WINDOW (wtop), TRUE);
 #endif
@@ -1639,7 +1639,7 @@ x_wm_set_size_hint (struct frame *f, long int flags, bool user_position)
   base_width = FRAME_TEXT_COLS_TO_PIXEL_WIDTH (f, 1) + FRAME_TOOLBAR_WIDTH (f);
   base_height = FRAME_TEXT_LINES_TO_PIXEL_HEIGHT (f, 1)
     + FRAME_MENUBAR_HEIGHT (f) + FRAME_TOOLBAR_HEIGHT (f);
-  PGTK_TRACE("base: %dx%d\n", base_width, base_height);
+  PGTK_TRACE ("base: %dx%d\n", base_width, base_height);
 
   size_hints.base_width = base_width;
   size_hints.base_height = base_height;
@@ -1767,7 +1767,7 @@ xg_frame_restack (struct frame *f1, struct frame *f2, bool above_flag)
 #ifndef HAVE_PGTK
       x_sync (f1);
 #else
-      gdk_flush();
+      gdk_flush ();
 #endif
     }
   unblock_input ();
@@ -4035,7 +4035,7 @@ xg_finish_scroll_bar_creation (struct frame *f,
      Emacs main window, which we draw over using Xlib.  */
   gtk_widget_realize (webox);
 #ifdef HAVE_PGTK
-  gtk_widget_show_all(webox);
+  gtk_widget_show_all (webox);
 #endif
 #ifndef HAVE_PGTK
   GTK_WIDGET_TO_X_WIN (webox);
@@ -4045,11 +4045,15 @@ xg_finish_scroll_bar_creation (struct frame *f,
   xg_set_cursor (webox, FRAME_DISPLAY_INFO (f)->xg_cursor);
 
 #ifdef HAVE_PGTK
-  GtkStyleContext *ctxt = gtk_widget_get_style_context(wscroll);
-  gtk_style_context_add_provider(ctxt, GTK_STYLE_PROVIDER(FRAME_OUTPUT_DATA (f)->scrollbar_foreground_css_provider),
-				 GTK_STYLE_PROVIDER_PRIORITY_USER);
-  gtk_style_context_add_provider(ctxt, GTK_STYLE_PROVIDER(FRAME_OUTPUT_DATA (f)->scrollbar_background_css_provider),
-				 GTK_STYLE_PROVIDER_PRIORITY_USER);
+  GtkStyleContext *ctxt = gtk_widget_get_style_context (wscroll);
+  gtk_style_context_add_provider (ctxt,
+				  GTK_STYLE_PROVIDER (FRAME_OUTPUT_DATA (f)->
+						      scrollbar_foreground_css_provider),
+				  GTK_STYLE_PROVIDER_PRIORITY_USER);
+  gtk_style_context_add_provider (ctxt,
+				  GTK_STYLE_PROVIDER (FRAME_OUTPUT_DATA (f)->
+						      scrollbar_background_css_provider),
+				  GTK_STYLE_PROVIDER_PRIORITY_USER);
 #endif
 
   bar->x_window = scroll_id;
@@ -4208,7 +4212,7 @@ xg_update_scrollbar_pos (struct frame *f,
 	  /* Don't obscure any child frames.  */
 	  XLowerWindow (FRAME_X_DISPLAY (f), GTK_WIDGET_TO_X_WIN (webox));
 #else
-	  gdk_window_lower(gtk_widget_get_window(webox));
+	  gdk_window_lower (gtk_widget_get_window(webox));
 #endif
 	}
 
@@ -4219,7 +4223,7 @@ xg_update_scrollbar_pos (struct frame *f,
 #ifndef HAVE_PGTK
       x_sync (f);
 #else
-      gdk_flush();
+      gdk_flush ();
 #endif
       SET_FRAME_GARBAGED (f);
       cancel_mouse_face (f);
@@ -4300,14 +4304,14 @@ xg_update_horizontal_scrollbar_pos (struct frame *f,
 	/* Don't obscure any child frames.  */
 	XLowerWindow (FRAME_X_DISPLAY (f), GTK_WIDGET_TO_X_WIN (webox));
 #else
-	gdk_window_lower(gtk_widget_get_window(webox));
+	gdk_window_lower (gtk_widget_get_window (webox));
 #endif
       }
 
 #ifndef HAVE_PGTK
       x_sync (f);
 #else
-      gdk_flush();
+      gdk_flush ();
 #endif
       SET_FRAME_GARBAGED (f);
       cancel_mouse_face (f);
@@ -4337,8 +4341,8 @@ xg_set_toolkit_scroll_bar_thumb (struct scroll_bar *bar,
 
   struct frame *f = XFRAME (WINDOW_FRAME (XWINDOW (bar->window)));
 
-  PGTK_TRACE("xg_set_toolkit_scroll_bar_thumb: ----------------------------------");
-  PGTK_TRACE("xg_set_toolkit_scroll_bar_thumb: %p, %d, %d, %d.", bar, portion, position, whole);
+  PGTK_TRACE ("xg_set_toolkit_scroll_bar_thumb: ----------------------------------");
+  PGTK_TRACE ("xg_set_toolkit_scroll_bar_thumb: %p, %d, %d, %d.", bar, portion, position, whole);
   if (wscroll && bar->dragging == -1)
     {
       GtkAdjustment *adj;
@@ -4370,16 +4374,16 @@ xg_set_toolkit_scroll_bar_thumb (struct scroll_bar *bar,
           top = (gdouble) position / whole;
           shown = (gdouble) portion / whole;
         }
-      PGTK_TRACE("xg_set_toolkit_scroll_bar_thumb: position=%d, portion=%d, whole=%d", position, portion, whole);
-      PGTK_TRACE("xg_set_toolkit_scroll_bar_thumb: top=%f, shown=%f", top, shown);
+      PGTK_TRACE ("xg_set_toolkit_scroll_bar_thumb: position=%d, portion=%d, whole=%d", position, portion, whole);
+      PGTK_TRACE ("xg_set_toolkit_scroll_bar_thumb: top=%f, shown=%f", top, shown);
 
-      PGTK_TRACE("xg_set_toolkit_scroll_bar_thumb: shown*range=%f", shown * XG_SB_RANGE);
+      PGTK_TRACE ("xg_set_toolkit_scroll_bar_thumb: shown*range=%f", shown * XG_SB_RANGE);
       size = clip_to_bounds (1, shown * XG_SB_RANGE, XG_SB_RANGE);
-      PGTK_TRACE("xg_set_toolkit_scroll_bar_thumb: size=%d.", size);
-      PGTK_TRACE("xg_set_toolkit_scroll_bar_thumb: top*range=%f.", top * XG_SB_RANGE);
-      PGTK_TRACE("xg_set_toolkit_scroll_bar_thumb: max-size=%d.", XG_SB_MAX - size);
+      PGTK_TRACE ("xg_set_toolkit_scroll_bar_thumb: size=%d.", size);
+      PGTK_TRACE ("xg_set_toolkit_scroll_bar_thumb: top*range=%f.", top * XG_SB_RANGE);
+      PGTK_TRACE ("xg_set_toolkit_scroll_bar_thumb: max-size=%d.", XG_SB_MAX - size);
       value = clip_to_bounds (XG_SB_MIN, top * XG_SB_RANGE, XG_SB_MAX - size);
-      PGTK_TRACE("xg_set_toolkit_scroll_bar_thumb: value=%d.", value);
+      PGTK_TRACE ("xg_set_toolkit_scroll_bar_thumb: value=%d.", value);
 
       /* Assume all lines are of equal size.  */
       new_step = size / max (1, FRAME_LINES (f));
@@ -4389,7 +4393,7 @@ xg_set_toolkit_scroll_bar_thumb (struct scroll_bar *bar,
       if (old_size != size)
 	{
 	  int old_step = gtk_adjustment_get_step_increment (adj);
-	  PGTK_TRACE("xg_set_toolkit_scroll_bar_thumb: old_step=%d, new_step=%d", old_step, new_step);
+	  PGTK_TRACE ("xg_set_toolkit_scroll_bar_thumb: old_step=%d, new_step=%d", old_step, new_step);
 	  if (old_step != new_step)
 	    {
 	      gtk_adjustment_set_page_size (adj, size);
@@ -4400,8 +4404,8 @@ xg_set_toolkit_scroll_bar_thumb (struct scroll_bar *bar,
 	    }
 	}
 
-      PGTK_TRACE("xg_set_toolkit_scroll_bar_thumb: changed=%d, old=%d, value=%d.",
-		 changed, int_gtk_range_get_value (GTK_RANGE (wscroll)), value);
+      PGTK_TRACE ("xg_set_toolkit_scroll_bar_thumb: changed=%d, old=%d, value=%d.",
+		  changed, int_gtk_range_get_value (GTK_RANGE (wscroll)), value);
       if (changed || int_gtk_range_get_value (GTK_RANGE (wscroll)) != value)
       {
         block_input ();
@@ -4481,7 +4485,7 @@ xg_event_is_for_scrollbar (struct frame *f, const EVENT *event)
 #ifndef HAVE_PGTK
       GdkDisplay *gdpy = gdk_x11_lookup_xdisplay (FRAME_X_DISPLAY (f));
 #else
-      GdkDisplay *gdpy = FRAME_X_DISPLAY(f);
+      GdkDisplay *gdpy = FRAME_X_DISPLAY (f);
 #endif
       GdkWindow *gwin;
 #ifdef HAVE_GTK3
