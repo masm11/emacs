@@ -10,7 +10,7 @@ You need cairo.
 git clone https://github.com/masm11/emacs.git
 cd emacs
 ./autogen.sh
-./configure --without-x --with-cairo --with-modules
+./configure --with-pgtk --with-cairo --with-modules
 make
 ```
 
@@ -128,21 +128,21 @@ I do, so no problem.
 ## My Environment
 
 - archlinux
-- gtk+ 3.24.18
-- glib2 2.64.2
-- gcc 9.3.0
+- gtk+ 3.24.20
+- glib2 2.64.3
+- gcc 10.1.0
 - wayland 1.18.0
 - wayland-protocols 1.20
 - cairo 1.17.2
-- freetype2 2.10.1
-- imagemagick 7.0.10.7
+- freetype2 2.10.2
+- imagemagick 7.0.10.22
 - ibus 1.5.22
 - mozc 2.23.2815.102
-- wayfire 0a0e980
+- wayfire e4f8d2bf
 
 ## Notice
 
-- Commit messages are in Japanese.
+We (@masm11 and @fejfighter) are going to push @fejfighter's fork to the fsf's repository, instead of my fork.  @fejfighter's one is rebaseable and have English commit messages.  See #23.
 
 ## About me
 
