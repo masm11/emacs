@@ -135,6 +135,8 @@
     (start-file-process . ignore)
     (substitute-in-file-name . tramp-handle-substitute-in-file-name)
     (temporary-file-directory . tramp-handle-temporary-file-directory)
+    (tramp-get-remote-gid . ignore)
+    (tramp-get-remote-uid . ignore)
     (tramp-set-file-uid-gid . ignore)
     (unhandled-file-name-directory . ignore)
     (vc-registered . ignore)
@@ -457,7 +459,7 @@ file names."
     ;; to cache a nil result.
     (or (tramp-get-connection-property
 	 (tramp-get-connection-process vec) "mounted" nil)
-	(let* ((default-directory temporary-file-directory)
+	(let* ((default-directory (tramp-compat-temporary-file-directory))
 	       (mount (shell-command-to-string "mount -t fuse.rclone")))
 	  (tramp-message vec 6 "%s" "mount -t fuse.rclone")
 	  (tramp-message vec 6 "\n%s" mount)
@@ -477,7 +479,19 @@ file names."
 	   (with-tramp-connection-property
 	       (tramp-get-connection-process vec) "rclone-pid"
 	     (catch 'pid
-	       (dolist (pid (list-system-processes)) ;; "pidof rclone" ?
+	       (dolist
+		   (pid
+		    ;; Until Emacs 25, `process-attributes' could
+		    ;; crash Emacs for some processes.  So we use
+		    ;; "pidof", which might not work everywhere.
+		    (if (<= emacs-major-version 25)
+			(let ((default-directory
+				(tramp-compat-temporary-file-directory)))
+			  (mapcar
+			   #'string-to-number
+			   (split-string
+			    (shell-command-to-string "pidof rclone"))))
+		      (list-system-processes)))
 		 (and (string-match-p
 		       (regexp-quote
 			(format "rclone mount %s:" (tramp-file-name-host vec)))

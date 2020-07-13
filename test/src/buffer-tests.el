@@ -20,6 +20,7 @@
 ;;; Code:
 
 (require 'ert)
+(require 'seq)
 (eval-when-compile (require 'cl-lib))
 
 (ert-deftest overlay-modification-hooks-message-other-buf ()
@@ -1326,5 +1327,11 @@ with parameters from the *Messages* buffer modification."
           (insert uni)
           (set-buffer-multibyte t)
           (buffer-string)))))))
+
+;; https://debbugs.gnu.org/33492
+(ert-deftest buffer-tests-buffer-local-variables-undo ()
+  "Test that `buffer-undo-list' appears in `buffer-local-variables'."
+  (with-temp-buffer
+    (should (assq 'buffer-undo-list (buffer-local-variables)))))
 
 ;;; buffer-tests.el ends here

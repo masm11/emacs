@@ -44,24 +44,11 @@
   :group 'convenience
   :version "27.1")
 
-(defgroup tab-bar-faces nil
+(defgroup tab-bar-faces '((tab-bar custom-face)) ; tab-bar is defined in faces.el
   "Faces used in the tab bar."
   :group 'tab-bar
   :group 'faces
   :version "27.1")
-
-(defface tab-bar
-  '((((class color) (min-colors 88))
-     :inherit variable-pitch
-     :background "grey85"
-     :foreground "black")
-    (((class mono))
-     :background "grey")
-    (t
-     :inverse-video t))
-  "Tab bar face."
-  :version "27.1"
-  :group 'tab-bar-faces)
 
 (defface tab-bar-tab
   '((default
@@ -376,19 +363,22 @@ to `tab-bar-tab-name-truncated'."
   :group 'tab-bar
   :version "27.1")
 
-(defvar tab-bar-tab-name-ellipsis
-  (if (char-displayable-p ?…) "…" "..."))
+(defvar tab-bar-tab-name-ellipsis nil)
 
 (defun tab-bar-tab-name-truncated ()
   "Generate tab name from the buffer of the selected window.
 Truncate it to the length specified by `tab-bar-tab-name-truncated-max'.
 Append ellipsis `tab-bar-tab-name-ellipsis' in this case."
-  (let ((tab-name (buffer-name (window-buffer (minibuffer-selected-window)))))
+  (let ((tab-name (buffer-name (window-buffer (minibuffer-selected-window))))
+        (ellipsis (cond
+                   (tab-bar-tab-name-ellipsis)
+                   ((char-displayable-p ?…) "…")
+                   ("..."))))
     (if (< (length tab-name) tab-bar-tab-name-truncated-max)
         tab-name
       (propertize (truncate-string-to-width
                    tab-name tab-bar-tab-name-truncated-max nil nil
-                   tab-bar-tab-name-ellipsis)
+                   ellipsis)
                   'help-echo tab-name))))
 
 
@@ -809,11 +799,14 @@ After the tab is created, the hooks in
       (run-hook-with-args 'tab-bar-tab-post-open-functions
                           (nth to-index tabs)))
 
-    (when (and (not tab-bar-mode)
-               (or (eq tab-bar-show t)
-                   (and (natnump tab-bar-show)
-                        (> (length tabs) tab-bar-show))))
+    (cond
+     (tab-bar-mode)
+     ((eq tab-bar-show t)
       (tab-bar-mode 1))
+     ((and (natnump tab-bar-show)
+           (> (length (funcall tab-bar-tabs-function)) tab-bar-show)
+           (zerop (frame-parameter nil 'tab-bar-lines)))
+      (set-frame-parameter nil 'tab-bar-lines 1)))
 
     (force-mode-line-update)
     (unless tab-bar-mode
@@ -946,10 +939,11 @@ for the last tab on a frame is determined by
                 tab-bar-closed-tabs)
           (set-frame-parameter nil 'tabs (delq close-tab tabs)))
 
-        (when (and tab-bar-mode
-                   (and (natnump tab-bar-show)
-                        (<= (length tabs) tab-bar-show)))
-          (tab-bar-mode -1))
+        (when (and (not (zerop (frame-parameter nil 'tab-bar-lines)))
+                   (natnump tab-bar-show)
+                   (<= (length (funcall tab-bar-tabs-function))
+                       tab-bar-show))
+          (set-frame-parameter nil 'tab-bar-lines 0))
 
         (force-mode-line-update)
         (unless tab-bar-mode
@@ -985,10 +979,11 @@ for the last tab on a frame is determined by
           (run-hook-with-args 'tab-bar-tab-pre-close-functions (nth index tabs) nil)))
       (set-frame-parameter nil 'tabs (list (nth current-index tabs)))
 
-      (when (and tab-bar-mode
-                 (and (natnump tab-bar-show)
-                      (<= 1 tab-bar-show)))
-        (tab-bar-mode -1))
+      (when (and (not (zerop (frame-parameter nil 'tab-bar-lines)))
+                 (natnump tab-bar-show)
+                 (<= (length (funcall tab-bar-tabs-function))
+                     tab-bar-show))
+        (set-frame-parameter nil 'tab-bar-lines 0))
 
       (force-mode-line-update)
       (unless tab-bar-mode
@@ -1551,9 +1546,9 @@ indirectly called by the latter."
 Like \\[switch-to-buffer-other-frame] (which see), but creates a new tab."
   (interactive
    (list (read-buffer-to-switch "Switch to buffer in other tab: ")))
-  (display-buffer buffer-or-name '((display-buffer-in-tab)
-                                   (inhibit-same-window . nil)
-                                   (reusable-frames . t))
+  (display-buffer (window-normalize-buffer-to-switch-to buffer-or-name)
+                  '((display-buffer-in-tab)
+                    (inhibit-same-window . nil))
                   norecord))
 
 (defun find-file-other-tab (filename &optional wildcards)
@@ -1571,6 +1566,24 @@ Like \\[find-file-other-frame] (which see), but creates a new tab."
           value)
       (switch-to-buffer-other-tab value))))
 
+(defun other-tab-prefix ()
+  "Display the buffer of the next command in a new tab.
+The next buffer is the buffer displayed by the next command invoked
+immediately after this command (ignoring reading from the minibuffer).
+Creates a new tab before displaying the buffer, or switches to the tab
+that already contains that buffer.
+When `switch-to-buffer-obey-display-actions' is non-nil,
+`switch-to-buffer' commands are also supported."
+  (interactive)
+  (display-buffer-override-next-command
+   (lambda (buffer alist)
+     (cons (progn
+             (display-buffer-in-tab
+              buffer (append alist '((inhibit-same-window . nil))))
+             (selected-window))
+           'tab)))
+  (message "Display next command buffer in a new tab..."))
+
 (define-key tab-prefix-map "2" 'tab-new)
 (define-key tab-prefix-map "1" 'tab-close-other)
 (define-key tab-prefix-map "0" 'tab-close)
@@ -1581,6 +1594,7 @@ Like \\[find-file-other-frame] (which see), but creates a new tab."
 (define-key tab-prefix-map "b" 'switch-to-buffer-other-tab)
 (define-key tab-prefix-map "f" 'find-file-other-tab)
 (define-key tab-prefix-map "\C-f" 'find-file-other-tab)
+(define-key tab-prefix-map "t" 'other-tab-prefix)
 
 
 (provide 'tab-bar)

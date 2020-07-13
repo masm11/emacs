@@ -1415,6 +1415,7 @@ Value is the height in pixels of the line at point.  */)
       set_buffer_internal_1 (XBUFFER (w->contents));
     }
   SET_TEXT_POS (pt, PT, PT_BYTE);
+  void *itdata = bidi_shelve_cache ();
   start_display (&it, w, pt);
   /* Start from the beginning of the screen line, to make sure we
      traverse all of its display elements, and thus capture the
@@ -1426,6 +1427,7 @@ Value is the height in pixels of the line at point.  */)
   if (old_buffer)
     set_buffer_internal_1 (old_buffer);
 
+  bidi_unshelve_cache (itdata, false);
   return result;
 }
 
@@ -1869,10 +1871,14 @@ pos_visible_p (struct window *w, ptrdiff_t charpos, int *x, int *y,
 		  top_x = it3.current_x - it3.pixel_width;
 		  /* Account for line-number display, if IT3 still
 		     didn't.  This can happen if START - 1 is the
-		     first character on its display line.  */
-		  if (!it3.line_number_produced_p
-		      && it.line_number_produced_p)
-		    top_x += it.lnum_pixel_width;
+		     first or the last character on its display line.  */
+		  if (!it3.line_number_produced_p)
+		    {
+		      if (it3.lnum_pixel_width > 0)
+			top_x += it3.lnum_pixel_width;
+		      else if (it.line_number_produced_p)
+			top_x += it.lnum_pixel_width;
+		    }
 		  /* Normally, we would exit the above loop because we
 		     found the display element whose character
 		     position is CHARPOS.  For the contingency that we
@@ -8290,8 +8296,8 @@ get_visually_first_element (struct it *it)
     }
   else if (it->bidi_it.charpos == bob
 	   || (!string_p
-	       && (FETCH_CHAR (it->bidi_it.bytepos - 1) == '\n'
-		   || FETCH_CHAR (it->bidi_it.bytepos) == '\n')))
+	       && (FETCH_BYTE (it->bidi_it.bytepos - 1) == '\n'
+		   || FETCH_BYTE (it->bidi_it.bytepos) == '\n')))
     {
       /* If we are at the beginning of a line/string, we can produce
 	 the next element right away.  */
@@ -8690,6 +8696,7 @@ handle_stop_backwards (struct it *it, ptrdiff_t charpos)
   ptrdiff_t where_we_are = (bufp ? IT_CHARPOS (*it) : IT_STRING_CHARPOS (*it));
   struct display_pos save_current = it->current;
   struct text_pos save_position = it->position;
+  struct composition_it save_cmp_it = it->cmp_it;
   struct text_pos pos1;
   ptrdiff_t next_stop;
 
@@ -8717,6 +8724,7 @@ handle_stop_backwards (struct it *it, ptrdiff_t charpos)
   it->bidi_p = true;
   it->current = save_current;
   it->position = save_position;
+  it->cmp_it = save_cmp_it;
   next_stop = it->stop_charpos;
   it->stop_charpos = it->prev_stop;
   handle_stop (it);
@@ -10445,33 +10453,43 @@ in_display_vector_p (struct it *it)
 DEFUN ("window-text-pixel-size", Fwindow_text_pixel_size, Swindow_text_pixel_size, 0, 6, 0,
        doc: /* Return the size of the text of WINDOW's buffer in pixels.
 WINDOW must be a live window and defaults to the selected one.  The
-return value is a cons of the maximum pixel-width of any text line and
-the maximum pixel-height of all text lines.
+return value is a cons of the maximum pixel-width of any text line
+and the pixel-height of all the text lines in the accessible portion
+of buffer text.
+
+This function exists to allow Lisp programs to adjust the dimensions
+of WINDOW to the buffer text it needs to display.
 
 The optional argument FROM, if non-nil, specifies the first text
-position and defaults to the minimum accessible position of the buffer.
-If FROM is t, use the minimum accessible position that starts a
-non-empty line.  TO, if non-nil, specifies the last text position and
-defaults to the maximum accessible position of the buffer.  If TO is t,
-use the maximum accessible position that ends a non-empty line.
+position to consider, and defaults to the minimum accessible position
+of the buffer.  If FROM is t, it stands for the minimum accessible
+position that starts a non-empty line.  TO, if non-nil, specifies the
+last text position and defaults to the maximum accessible position of
+the buffer.  If TO is t, it stands for the maximum accessible position
+that ends a non-empty line.
 
-The optional argument X-LIMIT, if non-nil, specifies the maximum text
-width that can be returned.  X-LIMIT nil or omitted, means to use the
-pixel-width of WINDOW's body; use this if you want to know how high
-WINDOW should be become in order to fit all of its buffer's text with
-the width of WINDOW unaltered.  Use the maximum width WINDOW may assume
-if you intend to change WINDOW's width.  In any case, text whose
-x-coordinate is beyond X-LIMIT is ignored.  Since calculating the width
-of long lines can take some time, it's always a good idea to make this
-argument as small as possible; in particular, if the buffer contains
-long lines that shall be truncated anyway.
+The optional argument X-LIMIT, if non-nil, specifies the maximum X
+coordinate beyond which the text should be ignored.  It is therefore
+also the maximum width that the function can return.  X-LIMIT nil or
+omitted means to use the pixel-width of WINDOW's body.  This default
+means text of truncated lines wider than the window will be ignored;
+specify a large value for X-LIMIT if lines are truncated and you need
+to account for the truncated text.  Use nil for X-LIMIT if you want to
+know how high WINDOW should become in order to fit all of its buffer's
+text with the width of WINDOW unaltered.  Use the maximum width WINDOW
+may assume if you intend to change WINDOW's width.  Since calculating
+the width of long lines can take some time, it's always a good idea to
+make this argument as small as possible; in particular, if the buffer
+contains long lines that shall be truncated anyway.
 
-The optional argument Y-LIMIT, if non-nil, specifies the maximum text
-height (excluding the height of the mode- or header-line, if any) that
-can be returned.  Text lines whose y-coordinate is beyond Y-LIMIT are
-ignored.  Since calculating the text height of a large buffer can take
-some time, it makes sense to specify this argument if the size of the
-buffer is large or unknown.
+The optional argument Y-LIMIT, if non-nil, specifies the maximum Y
+coordinate beyond which the text is to be ignored; it is therefore
+also the maxcomp height that the function can return (excluding the
+height of the mode- or header-line, if any).  Y-LIMIT nil or omitted
+means consider all of the accessible portion of buffer text up to the
+position specified by TO.  Since calculating the text height of a
+large buffer can take some time, it makes sense to specify this
+argument if the size of the buffer is large or unknown.
 
 Optional argument MODE-AND-HEADER-LINE nil or omitted means do not
 include the height of the mode- or header-line of WINDOW in the return
@@ -11573,7 +11591,9 @@ display_echo_area_1 (ptrdiff_t a1, Lisp_Object a2)
   /* Display.  */
   clear_glyph_matrix (w->desired_matrix);
   XSETWINDOW (window, w);
+  void *itdata = bidi_shelve_cache ();
   try_window (window, start, 0);
+  bidi_unshelve_cache (itdata, false);
 
   return window_height_changed_p;
 }
@@ -15566,6 +15586,12 @@ redisplay_internal (void)
 	  if (it.current_x != this_line_start_x)
 	    goto cancel;
 
+	  /* Give up on this optimization if the line starts with a
+	     string with display property that draws on the fringes,
+	     as that might interfere with line-prefix display.  */
+	  if (it.sp > 1
+	      && it.method == GET_FROM_IMAGE && it.image_id == -1)
+	    goto cancel;
 	  redisplay_trace ("trying display optimization 1\n");
 	  w->cursor.vpos = -1;
 	  overlay_arrow_seen = false;
@@ -19740,7 +19766,7 @@ find_last_row_displaying_text (struct glyph_matrix *matrix, struct it *it,
    by changes at the start of current_buffer that occurred since W's
    current matrix was built.  Value is null if no such row exists.
 
-   BEG_UNCHANGED us the number of characters unchanged at the start of
+   BEG_UNCHANGED is the number of characters unchanged at the start of
    current_buffer.  BEG + BEG_UNCHANGED is the buffer position of the
    first changed character in current_buffer.  Characters at positions <
    BEG + BEG_UNCHANGED are at the same buffer positions as they were
@@ -20338,6 +20364,12 @@ try_window_id (struct window *w)
 
       if (! init_to_row_end (&it, w, last_unchanged_at_beg_row))
 	GIVE_UP (18);
+      /* Give up if the row starts with a display property that draws
+	 on the fringes, since that could prevent correct display of
+	 line-prefix and wrap-prefix.  */
+      if (it.sp > 1
+	  && it.method == GET_FROM_IMAGE && it.image_id == -1)
+	GIVE_UP (26);
       start_pos = it.current.pos;
 
       /* Start displaying new lines in the desired matrix at the same
@@ -24182,7 +24214,7 @@ the `bidi-class' property of a character.  */)
 	  itb.charpos = BEGV;
 	  itb.bytepos = BEGV_BYTE;
 	}
-      else if (FETCH_CHAR (from_bpos - 1) == '\n')
+      else if (FETCH_BYTE (from_bpos - 1) == '\n')
 	{
 	  itb.charpos = from_pos;
 	  itb.bytepos = from_bpos;
@@ -24430,6 +24462,7 @@ Value is the new character position of point.  */)
       bool at_eol_p;
       bool overshoot_expected = false;
       bool target_is_eol_p = false;
+      void *itdata = bidi_shelve_cache ();
 
       /* Setup the arena.  */
       SET_TEXT_POS (pt, PT, PT_BYTE);
@@ -24658,6 +24691,7 @@ Value is the new character position of point.  */)
 
       /* Move point to that position.  */
       SET_PT_BOTH (IT_CHARPOS (it), IT_BYTEPOS (it));
+      bidi_unshelve_cache (itdata, false);
     }
 
   return make_fixnum (PT);
@@ -26356,6 +26390,22 @@ decode_mode_spec (struct window *w, register int c, int field_width,
 	startpos = marker_position (w->start);
 	startpos_byte = marker_byte_position (w->start);
 	height = WINDOW_TOTAL_LINES (w);
+	/* We cannot cope with w->start being outside of the
+	   accessible portion of the buffer; in particular,
+	   display_count_lines call below might infloop if called with
+	   startpos_byte outside of the [BEGV_BYTE..ZV_BYTE] region.
+	   Such w->start means we were called in some "creative" way
+	   when the buffer's restriction was changed, but the window
+	   wasn't yet redisplayed after that.  If that happens, we
+	   need to determine a new base line.  */
+	if (!(BUF_BEGV_BYTE (b) <= startpos_byte
+	      && startpos_byte <= BUF_ZV_BYTE (b)))
+	  {
+	    startpos = BUF_BEGV (b);
+	    startpos_byte = BUF_BEGV_BYTE (b);
+	    w->base_line_pos = 0;
+	    w->base_line_number = 0;
+	  }
 
 	/* If we decided that this buffer isn't suitable for line numbers,
 	   don't forget that too fast.  */
@@ -27674,10 +27724,12 @@ fill_gstring_glyph_string (struct glyph_string *s, int face_id,
   struct glyph *glyph, *last;
   Lisp_Object lgstring;
   int i;
+  bool glyph_not_available_p;
 
   s->for_overlaps = overlaps;
   glyph = s->row->glyphs[s->area] + start;
   last = s->row->glyphs[s->area] + end;
+  glyph_not_available_p = glyph->glyph_not_available_p;
   s->cmp_id = glyph->u.cmp.id;
   s->cmp_from = glyph->slice.cmp.from;
   s->cmp_to = glyph->slice.cmp.to + 1;
@@ -27691,7 +27743,9 @@ fill_gstring_glyph_string (struct glyph_string *s, int face_id,
   while (glyph < last
 	 && glyph->u.cmp.automatic
 	 && glyph->u.cmp.id == s->cmp_id
-	 && s->cmp_to == glyph->slice.cmp.from)
+	 && glyph->face_id == face_id
+	 && s->cmp_to == glyph->slice.cmp.from
+	 && glyph->glyph_not_available_p == glyph_not_available_p)
     {
       s->width += glyph->pixel_width;
       s->cmp_to = (glyph++)->slice.cmp.to + 1;
@@ -27705,6 +27759,12 @@ fill_gstring_glyph_string (struct glyph_string *s, int face_id,
       /* Ensure that the code is only 2 bytes wide.  */
       s->char2b[i] = code & 0xFFFF;
     }
+
+  /* If the specified font could not be loaded, record that fact in
+     S->font_not_found_p so that we can draw rectangles for the
+     characters of the glyph string.  */
+  if (glyph_not_available_p)
+    s->font_not_found_p = true;
 
   return glyph - s->row->glyphs[s->area];
 }
@@ -28912,7 +28972,7 @@ append_composite_glyph (struct it *it)
       glyph->overlaps_vertically_p = (it->phys_ascent > it->ascent
 				      || it->phys_descent > it->descent);
       glyph->padding_p = false;
-      glyph->glyph_not_available_p = false;
+      glyph->glyph_not_available_p = it->glyph_not_available_p;
       glyph->face_id = it->face_id;
       glyph->font_type = FONT_TYPE_UNKNOWN;
       if (it->bidi_p)
@@ -30620,11 +30680,21 @@ gui_produce_glyphs (struct it *it)
       it->pixel_width
 	= composition_gstring_width (gstring, it->cmp_it.from, it->cmp_it.to,
 				     &metrics);
-      if (it->glyph_row
-	  && (metrics.lbearing < 0 || metrics.rbearing > metrics.width))
-	it->glyph_row->contains_overlapping_glyphs_p = true;
-      it->ascent = it->phys_ascent = metrics.ascent;
-      it->descent = it->phys_descent = metrics.descent;
+      if (it->pixel_width == 0)
+	{
+	  it->glyph_not_available_p = true;
+	  it->phys_ascent = it->ascent;
+	  it->phys_descent = it->descent;
+	  it->pixel_width = face->font->space_width;
+	}
+      else
+	{
+	  if (it->glyph_row
+	      && (metrics.lbearing < 0 || metrics.rbearing > metrics.width))
+	    it->glyph_row->contains_overlapping_glyphs_p = true;
+	  it->ascent = it->phys_ascent = metrics.ascent;
+	  it->descent = it->phys_descent = metrics.descent;
+	}
       IT_APPLY_FACE_BOX(it, face);
 
       /* If face has an overline, add the height of the overline

@@ -264,16 +264,20 @@ be found, return nil.
 The default implementation uses `semantic-symref-tool-alist' to
 find a search tool; by default, this uses \"find | grep\" in the
 `project-current' roots."
-  (cl-mapcan
+  (mapcan
    (lambda (dir)
      (xref-references-in-directory identifier dir))
    (let ((pr (project-current t)))
-     (append
-      (project-roots pr)
+     (cons
+      (project-root pr)
       (project-external-roots pr)))))
 
 (cl-defgeneric xref-backend-apropos (backend pattern)
-  "Find all symbols that match regexp PATTERN.")
+  "Find all symbols that match PATTERN string.
+The second argument has the same meaning as in `apropos'.
+
+If BACKEND is implemented in Lisp, it can use
+`xref-apropos-regexp' to convert the pattern to regexp.")
 
 (cl-defgeneric xref-backend-identifier-at-point (_backend)
   "Return the relevant identifier at point.
@@ -1098,14 +1102,24 @@ The argument has the same meaning as in `apropos'."
                       "Search for pattern (word list or regexp): "
                       nil 'xref--read-pattern-history)))
   (require 'apropos)
-  (xref--find-xrefs pattern 'apropos
-                    (apropos-parse-pattern
-                     (if (string-equal (regexp-quote pattern) pattern)
-                         ;; Split into words
-                         (or (split-string pattern "[ \t]+" t)
-                             (user-error "No word list given"))
-                       pattern))
-                    nil))
+  (let* ((newpat
+          (if (and (version< emacs-version "28.0.50")
+                   (memq (xref-find-backend) '(elisp etags)))
+              ;; Handle backends in older Emacs.
+              (xref-apropos-regexp pattern)
+            ;; Delegate pattern handling to the backend fully.
+            ;; The old way didn't work for "external" backends.
+            pattern)))
+    (xref--find-xrefs pattern 'apropos newpat nil)))
+
+(defun xref-apropos-regexp (pattern)
+  "Return an Emacs regexp from PATTERN similar to `apropos'."
+  (apropos-parse-pattern
+   (if (string-equal (regexp-quote pattern) pattern)
+       ;; Split into words
+       (or (split-string pattern "[ \t]+" t)
+           (user-error "No word list given"))
+     pattern)))
 
 
 ;;; Key bindings
@@ -1369,8 +1383,8 @@ Such as the current syntax table and the applied syntax properties."
   (let (xref--last-file-buffer
         (tmp-buffer (generate-new-buffer " *xref-temp*")))
     (unwind-protect
-        (cl-mapcan (lambda (hit) (xref--collect-matches hit regexp tmp-buffer))
-                   hits)
+        (mapcan (lambda (hit) (xref--collect-matches hit regexp tmp-buffer))
+                hits)
       (kill-buffer tmp-buffer))))
 
 (defun xref--collect-matches (hit regexp tmp-buffer)

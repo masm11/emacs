@@ -2966,10 +2966,29 @@ read1 (Lisp_Object readcharfun, int *pch, bool first_in_list)
 	  struct Lisp_Vector *vec;
 	  tmp = read_vector (readcharfun, 1);
 	  vec = XVECTOR (tmp);
-	  if (vec->header.size == 0)
-	    invalid_syntax ("Empty byte-code object");
+	  if (! (COMPILED_STACK_DEPTH < ASIZE (tmp)
+		 && (FIXNUMP (AREF (tmp, COMPILED_ARGLIST))
+		     || CONSP (AREF (tmp, COMPILED_ARGLIST))
+		     || NILP (AREF (tmp, COMPILED_ARGLIST)))
+		 && ((STRINGP (AREF (tmp, COMPILED_BYTECODE))
+		      && VECTORP (AREF (tmp, COMPILED_CONSTANTS)))
+		     || CONSP (AREF (tmp, COMPILED_BYTECODE)))
+		 && FIXNATP (AREF (tmp, COMPILED_STACK_DEPTH))))
+	    invalid_syntax ("Invalid byte-code object");
 
-	  if (COMPILED_DOC_STRING < vec->header.size
+	  if (STRINGP (AREF (tmp, COMPILED_BYTECODE))
+	      && STRING_MULTIBYTE (AREF (tmp, COMPILED_BYTECODE)))
+	    {
+	      /* BYTESTR must have been produced by Emacs 20.2 or earlier
+		 because it produced a raw 8-bit string for byte-code and
+		 now such a byte-code string is loaded as multibyte with
+		 raw 8-bit characters converted to multibyte form.
+		 Convert them back to the original unibyte form.  */
+	      ASET (tmp, COMPILED_BYTECODE,
+		    Fstring_as_unibyte (AREF (tmp, COMPILED_BYTECODE)));
+	    }
+
+	  if (COMPILED_DOC_STRING < ASIZE (tmp)
 	      && EQ (AREF (tmp, COMPILED_DOC_STRING), make_fixnum (0)))
 	    {
 	      /* read_list found a docstring like '(#$ . 5521)' and treated it
@@ -2986,7 +3005,7 @@ read1 (Lisp_Object readcharfun, int *pch, bool first_in_list)
 	      ASET (tmp, COMPILED_DOC_STRING, make_ufixnum (hash));
 	    }
 
-	  make_byte_code (vec);
+	  XSETPVECTYPE (vec, PVEC_COMPILED);
 	  return tmp;
 	}
       if (c == '(')
@@ -3824,9 +3843,11 @@ read_vector (Lisp_Object readcharfun, bool bytecodeflag)
 {
   Lisp_Object tem = read_list (1, readcharfun);
   ptrdiff_t size = list_length (tem);
-  if (bytecodeflag && size <= COMPILED_STACK_DEPTH)
-    error ("Invalid byte code");
   Lisp_Object vector = make_nil_vector (size);
+
+  /* Avoid accessing past the end of a vector if the vector is too
+     small to be valid for bytecode.  */
+  bytecodeflag &= COMPILED_STACK_DEPTH < size;
 
   Lisp_Object *ptr = XVECTOR (vector)->contents;
   for (ptrdiff_t i = 0; i < size; i++)

@@ -2452,15 +2452,33 @@ Function to display the current buffer in a WWW browser.
 This is used by the `browse-url-at-point', `browse-url-at-mouse', and
 `browse-url-of-file' commands.
 
-If the value is not a function it should be a list of pairs
-\(REGEXP . FUNCTION).  In this case the function called will be the one
-associated with the first REGEXP which matches the current URL.  The
-function is passed the URL and any other args of `browse-url'.  The last
-regexp should probably be \".\" to specify a default browser.
-
-Also see `browse-url-secondary-browser-function'.")
+Also see `browse-url-secondary-browser-function' and
+`browse-url-handlers'.")
 
 (custom-autoload 'browse-url-browser-function "browse-url" t)
+
+(defvar browse-url-default-handlers '(("\\`mailto:" . browse-url--mailto) ("\\`man:" . browse-url--man) (browse-url--non-html-file-url-p . browse-url-emacs)) "\
+Like `browse-url-handlers' but populated by Emacs and packages.
+
+Emacs and external packages capable of browsing certain URLs
+should place their entries in this alist rather than
+`browse-url-handlers' which is reserved for the user.")
+
+(autoload 'browse-url-select-handler "browse-url" "\
+Return a handler of suitable for browsing URL.
+This searches `browse-url-handlers', and
+`browse-url-default-handlers' for a matching handler.  Return nil
+if no handler is found.
+
+If KIND is given, the search is restricted to handlers whose
+function symbol has the symbol-property `browse-url-browser-kind'
+set to KIND.
+
+Currently, it also consults `browse-url-browser-function' first
+if it is set to an alist, although this usage is deprecated since
+Emacs 28.1 and will be removed in a future release.
+
+\(fn URL &optional KIND)" nil nil)
 
 (autoload 'browse-url-of-file "browse-url" "\
 Ask a WWW browser to display FILE.
@@ -2491,16 +2509,18 @@ Ask a WWW browser to display the current region.
 Ask a WWW browser to load URL.
 Prompt for a URL, defaulting to the URL at or before point.
 Invokes a suitable browser function which does the actual job.
-The variable `browse-url-browser-function' says which browser function to
-use.  If the URL is a mailto: URL, consult `browse-url-mailto-function'
-first, if that exists.
 
-The additional ARGS are passed to the browser function.  See the doc
-strings of the actual functions, starting with `browse-url-browser-function',
-for information about the significance of ARGS (most of the functions
-ignore it).
-If ARGS are omitted, the default is to pass `browse-url-new-window-flag'
-as ARGS.
+The variables `browse-url-browser-function',
+`browse-url-handlers', and `browse-url-default-handlers'
+determine which browser function to use.
+
+The additional ARGS are passed to the browser function.  See the
+doc strings of the actual functions, starting with
+`browse-url-browser-function', for information about the
+significance of ARGS (most of the functions ignore it).
+
+If ARGS are omitted, the default is to pass
+`browse-url-new-window-flag' as ARGS.
 
 \(fn URL &rest ARGS)" t nil)
 
@@ -2511,6 +2531,15 @@ Optional prefix argument ARG non-nil inverts the value of the option
 `browse-url-new-window-flag'.
 
 \(fn &optional ARG)" t nil)
+
+(autoload 'browse-url-with-browser-kind "browse-url" "\
+Browse URL with a browser of the given browser KIND.
+KIND is either `internal' or `external'.
+
+When called interactively, the default browser kind is the
+opposite of the browser kind of `browse-url-browser-function'.
+
+\(fn KIND URL &optional ARG)" t nil)
 
 (autoload 'browse-url-at-mouse "browse-url" "\
 Ask a WWW browser to load a URL clicked with the mouse.
@@ -2698,6 +2727,8 @@ When called non-interactively, use optional second argument
 NEW-WINDOW instead of `browse-url-new-window-flag'.
 
 \(fn URL &optional NEW-WINDOW)" t nil)
+
+(make-obsolete 'browse-url-conkeror 'nil '"28.1")
 
 (autoload 'browse-url-w3 "browse-url" "\
 Ask the w3 WWW browser to load URL.
@@ -3674,7 +3705,7 @@ Return the syntactic context of the current line." nil nil)
 ;;;### (autoloads nil "cc-fonts" "progmodes/cc-fonts.el" (0 0 0 0))
 ;;; Generated autoloads from progmodes/cc-fonts.el
 
-(if (fboundp 'register-definition-prefixes) (register-definition-prefixes "cc-fonts" '("autodoc-" "c++-font-lock-keywords" "c-" "gtkdoc-font-lock-" "idl-font-lock-keywords" "java" "objc-font-lock-keywords" "pike-font-lock-keywords")))
+(if (fboundp 'register-definition-prefixes) (register-definition-prefixes "cc-fonts" '("autodoc-" "c++-font-lock-keywords" "c-" "doxygen-font-lock-" "gtkdoc-font-lock-" "idl-font-lock-keywords" "java" "objc-font-lock-keywords" "pike-font-lock-keywords")))
 
 ;;;***
 
@@ -3843,7 +3874,7 @@ should be used.
 
 This function attempts to use file contents to determine whether
 the code is C or C++ and based on that chooses whether to enable
-`c-mode' or `c++-mode'." nil nil)
+`c-mode' or `c++-mode'." t nil)
 
 (autoload 'c++-mode "cc-mode" "\
 Major mode for editing C++ code.
@@ -6635,7 +6666,7 @@ Create a new data-debug buffer with NAME.
 
 \(fn NAME)" nil nil)
 
-(if (fboundp 'register-definition-prefixes) (register-definition-prefixes "data-debug" '("data-debug-" "dd-propertize")))
+(if (fboundp 'register-definition-prefixes) (register-definition-prefixes "data-debug" '("data-debug-")))
 
 ;;;***
 
@@ -7258,13 +7289,16 @@ deletes all frames except the selected one (and its minibuffer frame,
 if different)." t nil)
 
 (autoload 'desktop-save "desktop" "\
-Save the desktop in a desktop file.
-Parameter DIRNAME specifies where to save the desktop file.
-Optional parameter RELEASE says whether we're done with this
-desktop.  If ONLY-IF-CHANGED is non-nil, compare the current
-desktop information to that in the desktop file, and if the
-desktop information has not changed since it was last saved then
-do not rewrite the file.
+Save the state of Emacs in a desktop file in directory DIRNAME.
+Optional argument RELEASE non-nil says we're done with this
+desktop, in which case this function releases the lock of the
+desktop file in DIRNAME.
+If ONLY-IF-CHANGED is non-nil, compare the current desktop
+information to that in the desktop file, and if the desktop
+information has not changed since it was last saved, then do
+not rewrite the file.
+
+To restore the desktop, use `desktop-read'.
 
 This function can save the desktop in either format version
 208 (which only Emacs 25.1 and later can read) or version
@@ -7274,14 +7308,20 @@ it was last saved, or version 208 when writing a fresh desktop
 file.
 
 To upgrade a version 206 file to version 208, call this command
-explicitly with a bare prefix argument: C-u M-x desktop-save.
-You are recommended to do this once you have firmly upgraded to
-Emacs 25.1 (or later).  To downgrade a version 208 file to version
-206, use a double command prefix: C-u C-u M-x desktop-save.
-Confirmation will be requested in either case.  In a non-interactive
-call, VERSION can be given as an integer, either 206 or 208, which
-will be accepted as the format version in which to save the file
-without further confirmation.
+explicitly with a prefix argument: \\[universal-argument] \\[desktop-save].
+If you are upgrading from Emacs 24 or older, we recommed to do
+this once you decide you no longer need compatibility with versions
+of Emacs before 25.1.
+
+To downgrade a version 208 file to version 206, use a double prefix
+argument: \\[universal-argument] \\[universal-argument] \\[desktop-save].
+
+Emacs will ask for confirmation when you upgrade or downgrade your
+desktop file.
+
+In a non-interactive call, VERSION can be given as an integer, either
+206 or 208, to specify the format version in which to save the file,
+no questions asked.
 
 \(fn DIRNAME &optional RELEASE ONLY-IF-CHANGED VERSION)" t nil)
 
@@ -7866,6 +7906,7 @@ it if ARG is `toggle'; disable the mode otherwise.
 To change the position of the column displayed by default
 customize `display-fill-column-indicator-column'.  You can change the
 character for the indicator setting `display-fill-column-indicator-character'.
+See Info node `Displaying Boundaries' for details.
 
 \(fn &optional ARG)" t nil)
 
@@ -9903,6 +9944,12 @@ It creates an autoload function for CNAME's constructor.
 ;;; Generated autoloads from emacs-lisp/eieio-speedbar.el
 
 (if (fboundp 'register-definition-prefixes) (register-definition-prefixes "eieio-speedbar" '("eieio-speedbar")))
+
+;;;***
+
+;;;### (autoloads nil "eldoc" "emacs-lisp/eldoc.el" (0 0 0 0))
+;;; Generated autoloads from emacs-lisp/eldoc.el
+(push (purecopy '(eldoc 1 0 0)) package--builtin-versions)
 
 ;;;***
 
@@ -12470,9 +12517,14 @@ operating on the next file and nil otherwise.
 (autoload 'fileloop-initialize-replace "fileloop" "\
 Initialize a new round of query&replace on several files.
 FROM is a regexp and TO is the replacement to use.
-FILES describes the file, as in `fileloop-initialize'.
-CASE-FOLD can be t, nil, or `default', the latter one meaning to obey
-the default setting of `case-fold-search'.
+FILES describes the files, as in `fileloop-initialize'.
+CASE-FOLD can be t, nil, or `default':
+  if it is nil, matching of FROM is case-sensitive.
+  if it is t, matching of FROM is case-insensitive, except
+     when `search-upper-case' is non-nil and FROM includes
+     upper-case letters.
+  if it is `default', the function uses the value of
+     `case-fold-search' instead.
 DELIMITED if non-nil means replace only word-delimited matches.
 
 \(fn FROM TO FILES CASE-FOLD &optional DELIMITED)" nil nil)
@@ -13058,9 +13110,10 @@ generated it.
 
 (autoload 'flymake-make-diagnostic "flymake" "\
 Make a Flymake diagnostic for BUFFER's region from BEG to END.
-TYPE is a key to symbol and TEXT is a description of the problem
-detected in this region.  DATA is any object that the caller
-wishes to attach to the created diagnostic for later retrieval.
+TYPE is a diagnostic symbol and TEXT is string describing the
+problem detected in this region.  DATA is any object that the
+caller wishes to attach to the created diagnostic for later
+retrieval.
 
 OVERLAY-PROPERTIES is an alist of properties attached to the
 created diagnostic, overriding the default properties and any
@@ -13391,7 +13444,54 @@ play around with the following keys:
 ;;;### (autoloads nil "format-spec" "format-spec.el" (0 0 0 0))
 ;;; Generated autoloads from format-spec.el
 
-(if (fboundp 'register-definition-prefixes) (register-definition-prefixes "format-spec" '("format-spec")))
+(autoload 'format-spec "format-spec" "\
+Return a string based on FORMAT and SPECIFICATION.
+FORMAT is a string containing `format'-like specs like \"su - %u %k\".
+SPECIFICATION is an alist mapping format specification characters
+to their substitutions.
+
+For instance:
+
+  (format-spec \"su - %u %l\"
+               \\=`((?u . ,(user-login-name))
+                 (?l . \"ls\")))
+
+Each %-spec may contain optional flag, width, and precision
+modifiers, as follows:
+
+  %<flags><width><precision>character
+
+The following flags are allowed:
+
+* 0: Pad to the width, if given, with zeros instead of spaces.
+* -: Pad to the width, if given, on the right instead of the left.
+* <: Truncate to the width and precision, if given, on the left.
+* >: Truncate to the width and precision, if given, on the right.
+* ^: Convert to upper case.
+* _: Convert to lower case.
+
+The width and truncation modifiers behave like the corresponding
+ones in `format' when applied to %s.
+
+For example, \"%<010b\" means \"substitute into the output the
+value associated with ?b in SPECIFICATION, either padding it with
+leading zeros or truncating leading characters until it's ten
+characters wide\".
+
+Any text properties of FORMAT are copied to the result, with any
+text properties of a %-spec itself copied to its substitution.
+
+IGNORE-MISSING indicates how to handle %-spec characters not
+present in SPECIFICATION.  If it is nil or omitted, emit an
+error; if it is the symbol `ignore', leave those %-specs verbatim
+in the result, including their text properties, if any; if it is
+the symbol `delete', remove those %-specs from the result;
+otherwise do the same as for the symbol `ignore', but also leave
+any occurrences of \"%%\" in FORMAT verbatim in the result.
+
+\(fn FORMAT SPECIFICATION &optional IGNORE-MISSING)" nil nil)
+
+(if (fboundp 'register-definition-prefixes) (register-definition-prefixes "format-spec" '("format-spec-")))
 
 ;;;***
 
@@ -13576,7 +13676,7 @@ and choose the directory as the fortune-file.
 Minimum set of parameters to filter for live (on-session) framesets.
 DO NOT MODIFY.  See `frameset-filter-alist' for a full description.")
 
-(defvar frameset-persistent-filter-alist (nconc '((background-color . frameset-filter-sanitize-color) (buffer-list . :never) (buffer-predicate . :never) (buried-buffer-list . :never) (client . :never) (delete-before . :never) (font . frameset-filter-font-param) (font-backend . :never) (foreground-color . frameset-filter-sanitize-color) (frameset--text-pixel-height . :save) (frameset--text-pixel-width . :save) (fullscreen . frameset-filter-shelve-param) (GUI:font . frameset-filter-unshelve-param) (GUI:fullscreen . frameset-filter-unshelve-param) (GUI:height . frameset-filter-unshelve-param) (GUI:width . frameset-filter-unshelve-param) (height . frameset-filter-shelve-param) (outer-window-id . :never) (parent-frame . :never) (parent-id . :never) (mouse-wheel-frame . :never) (tty . frameset-filter-tty-to-GUI) (tty-type . frameset-filter-tty-to-GUI) (width . frameset-filter-shelve-param) (window-id . :never) (window-system . :never)) frameset-session-filter-alist) "\
+(defvar frameset-persistent-filter-alist (append '((background-color . frameset-filter-sanitize-color) (buffer-list . :never) (buffer-predicate . :never) (buried-buffer-list . :never) (client . :never) (delete-before . :never) (font . frameset-filter-font-param) (font-backend . :never) (foreground-color . frameset-filter-sanitize-color) (frameset--text-pixel-height . :save) (frameset--text-pixel-width . :save) (fullscreen . frameset-filter-shelve-param) (GUI:font . frameset-filter-unshelve-param) (GUI:fullscreen . frameset-filter-unshelve-param) (GUI:height . frameset-filter-unshelve-param) (GUI:width . frameset-filter-unshelve-param) (height . frameset-filter-shelve-param) (outer-window-id . :never) (parent-frame . :never) (parent-id . :never) (mouse-wheel-frame . :never) (tty . frameset-filter-tty-to-GUI) (tty-type . frameset-filter-tty-to-GUI) (width . frameset-filter-shelve-param) (window-id . :never) (window-system . :never)) frameset-session-filter-alist) "\
 Parameters to filter for persistent framesets.
 DO NOT MODIFY.  See `frameset-filter-alist' for a full description.")
 
@@ -15827,10 +15927,10 @@ Commands:
 \(fn)" t nil)
 
 (autoload 'help-mode-setup "help-mode" "\
-Enter Help Mode in the current buffer." nil nil)
+Enter Help mode in the current buffer." nil nil)
 
 (autoload 'help-mode-finish "help-mode" "\
-Finalize Help Mode setup in current buffer." nil nil)
+Finalize Help mode setup in current buffer." nil nil)
 
 (autoload 'help-setup-xref "help-mode" "\
 Invoked from commands using the \"*Help*\" buffer to install some xref info.
@@ -16053,7 +16153,10 @@ or add (global-hi-lock-mode 1) to your init file.
 In buffers where Font Lock mode is enabled, patterns are
 highlighted using font lock.  In buffers where Font Lock mode is
 disabled, patterns are applied using overlays; in this case, the
-highlighting will not be updated as you type.
+highlighting will not be updated as you type.  The Font Lock mode
+is considered \"enabled\" in a buffer if its `major-mode'
+causes `font-lock-specified-p' to return non-nil, which means
+the major mode specifies support for Font Lock.
 
 When Hi Lock mode is enabled, a \"Regexp Highlighting\" submenu
 is added to the \"Edit\" menu.  The commands in the submenu,
@@ -16166,7 +16269,10 @@ and `search-upper-case' is non-nil, the matching is case-sensitive.
 
 Use Font lock mode, if enabled, to highlight REGEXP.  Otherwise,
 use overlays for highlighting.  If overlays are used, the
-highlighting will not update as you type.
+highlighting will not update as you type.  The Font Lock mode
+is considered \"enabled\" in a buffer if its `major-mode'
+causes `font-lock-specified-p' to return non-nil, which means
+the major mode specifies support for Font Lock.
 
 \(fn REGEXP &optional FACE SUBEXP LIGHTER)" t nil)
 
@@ -16183,7 +16289,10 @@ Also set `search-spaces-regexp' to the value of `search-whitespace-regexp'.
 
 Use Font lock mode, if enabled, to highlight REGEXP.  Otherwise,
 use overlays for highlighting.  If overlays are used, the
-highlighting will not update as you type.
+highlighting will not update as you type.  The Font Lock mode
+is considered \"enabled\" in a buffer if its `major-mode'
+causes `font-lock-specified-p' to return non-nil, which means
+the major mode specifies support for Font Lock.
 
 \(fn REGEXP &optional FACE)" t nil)
 
@@ -16199,7 +16308,10 @@ If REGEXP contains upper case characters (excluding those preceded by `\\')
 and `search-upper-case' is non-nil, the matching is case-sensitive.
 
 This uses Font lock mode if it is enabled; otherwise it uses overlays,
-in which case the highlighting will not update as you type." t nil)
+in which case the highlighting will not update as you type.  The Font
+Lock mode is considered \"enabled\" in a buffer if its `major-mode'
+causes `font-lock-specified-p' to return non-nil, which means
+the major mode specifies support for Font Lock." t nil)
 
 (defalias 'unhighlight-regexp 'hi-lock-unface-buffer)
 
@@ -18322,6 +18434,7 @@ Moving within a node:
 	  already visible, try to go to the previous menu entry, or up
 	  if there is none.
 \\[beginning-of-buffer]	Go to beginning of node.
+\\[end-of-buffer]	Go to end of node.
 
 Advanced commands:
 \\[Info-search]	Search through this Info file for specified regexp,
@@ -19097,7 +19210,7 @@ one of the aforementioned options instead of using this mode.
 
 ;;;### (autoloads nil "json" "json.el" (0 0 0 0))
 ;;; Generated autoloads from json.el
-(push (purecopy '(json 1 4)) package--builtin-versions)
+(push (purecopy '(json 1 5)) package--builtin-versions)
 
 (if (fboundp 'register-definition-prefixes) (register-definition-prefixes "json" '("json-")))
 
@@ -19105,7 +19218,7 @@ one of the aforementioned options instead of using this mode.
 
 ;;;### (autoloads nil "jsonrpc" "jsonrpc.el" (0 0 0 0))
 ;;; Generated autoloads from jsonrpc.el
-(push (purecopy '(jsonrpc 1 0 9)) package--builtin-versions)
+(push (purecopy '(jsonrpc 1 0 12)) package--builtin-versions)
 
 (if (fboundp 'register-definition-prefixes) (register-definition-prefixes "jsonrpc" '("jrpc-default-request-timeout" "jsonrpc-")))
 
@@ -20701,49 +20814,6 @@ Major mode for editing MetaPost sources.
 
 ;;;***
 
-;;;### (autoloads nil "metamail" "mail/metamail.el" (0 0 0 0))
-;;; Generated autoloads from mail/metamail.el
-
-(autoload 'metamail-interpret-header "metamail" "\
-Interpret a header part of a MIME message in current buffer.
-Its body part is not interpreted at all." t nil)
-
-(autoload 'metamail-interpret-body "metamail" "\
-Interpret a body part of a MIME message in current buffer.
-Optional argument VIEWMODE specifies the value of the
-EMACS_VIEW_MODE environment variable (defaulted to 1).
-Optional argument NODISPLAY non-nil means buffer is not
-redisplayed as output is inserted.
-Its header part is not interpreted at all.
-
-\(fn &optional VIEWMODE NODISPLAY)" t nil)
-
-(autoload 'metamail-buffer "metamail" "\
-Process current buffer through `metamail'.
-Optional argument VIEWMODE specifies the value of the
-EMACS_VIEW_MODE environment variable (defaulted to 1).
-Optional argument BUFFER specifies a buffer to be filled (nil
-means current).
-Optional argument NODISPLAY non-nil means buffer is not
-redisplayed as output is inserted.
-
-\(fn &optional VIEWMODE BUFFER NODISPLAY)" t nil)
-
-(autoload 'metamail-region "metamail" "\
-Process current region through `metamail'.
-Optional argument VIEWMODE specifies the value of the
-EMACS_VIEW_MODE environment variable (defaulted to 1).
-Optional argument BUFFER specifies a buffer to be filled (nil
-means current).
-Optional argument NODISPLAY non-nil means buffer is not
-redisplayed as output is inserted.
-
-\(fn BEG END &optional VIEWMODE BUFFER NODISPLAY)" t nil)
-
-(if (fboundp 'register-definition-prefixes) (register-definition-prefixes "metamail" '("metamail-")))
-
-;;;***
-
 ;;;### (autoloads nil "mh-acros" "mh-e/mh-acros.el" (0 0 0 0))
 ;;; Generated autoloads from mh-e/mh-acros.el
 
@@ -22271,8 +22341,8 @@ a greeting from the server.
 :nowait, if non-nil, says the connection should be made
 asynchronously, if possible.
 
-:shell-command is a format-spec string that can be used if :type
-is `shell'.  It has two specs, %s for host and %p for port
+:shell-command is a `format-spec' string that can be used if
+:type is `shell'.  It has two specs, %s for host and %p for port
 number.  Example: \"ssh gateway nc %s %p\".
 
 :tls-parameters is a list that should be supplied if you're
@@ -26181,15 +26251,18 @@ Open profile FILENAME.
 
 ;;;### (autoloads nil "project" "progmodes/project.el" (0 0 0 0))
 ;;; Generated autoloads from progmodes/project.el
+(push (purecopy '(project 0 4 0)) package--builtin-versions)
 
 (autoload 'project-current "project" "\
 Return the project instance in DIR or `default-directory'.
 When no project found in DIR, and MAYBE-PROMPT is non-nil, ask
-the user for a different directory to look in.  If that directory
-is not a part of a detectable project either, return a
-`transient' project instance rooted in it.
+the user for a different project to look in.
 
 \(fn &optional MAYBE-PROMPT DIR)" nil nil)
+
+(defvar project-prefix-map (let ((map (make-sparse-keymap))) (define-key map "f" 'project-find-file) (define-key map "b" 'project-switch-to-buffer) (define-key map "s" 'project-shell) (define-key map "d" 'project-dired) (define-key map "v" 'project-vc-dir) (define-key map "c" 'project-compile) (define-key map "e" 'project-eshell) (define-key map "k" 'project-kill-buffers) (define-key map "p" 'project-switch-project) (define-key map "g" 'project-find-regexp) (define-key map "r" 'project-query-replace-regexp) map) "\
+Keymap for project commands.")
+ (define-key ctl-x-map "p" project-prefix-map)
 
 (autoload 'project-find-regexp "project" "\
 Find all matches for REGEXP in the current project's roots.
@@ -26210,14 +26283,34 @@ pattern to search for.
 \(fn REGEXP)" t nil)
 
 (autoload 'project-find-file "project" "\
-Visit a file (with completion) in the current project's roots.
+Visit a file (with completion) in the current project.
 The completion default is the filename at point, if one is
 recognized." t nil)
 
 (autoload 'project-or-external-find-file "project" "\
-Visit a file (with completion) in the current project's roots or external roots.
+Visit a file (with completion) in the current project or external roots.
 The completion default is the filename at point, if one is
 recognized." t nil)
+
+(autoload 'project-dired "project" "\
+Start Dired in the current project's root." t nil)
+
+(autoload 'project-vc-dir "project" "\
+Run VC-Dir in the current project's root." t nil)
+
+(autoload 'project-shell "project" "\
+Start an inferior shell in the current project's root directory.
+If a buffer already exists for running a shell in the project's root,
+switch to it.  Otherwise, create a new shell buffer.
+With \\[universal-argument] prefix arg, create a new inferior shell buffer even
+if one already exists." t nil)
+
+(autoload 'project-eshell "project" "\
+Start Eshell in the current project's root directory.
+If a buffer already exists for running Eshell in the project's root,
+switch to it.  Otherwise, create a new Eshell buffer.
+With \\[universal-argument] prefix arg, create a new Eshell buffer even
+if one already exists." t nil)
 
 (autoload 'project-search "project" "\
 Search for REGEXP in all the files of the project.
@@ -26234,6 +26327,38 @@ If you exit the query-replace, you can later continue the query-replace
 loop using the command \\[fileloop-continue].
 
 \(fn FROM TO)" t nil)
+
+(autoload 'project-compile "project" "\
+Run `compile' in the project root.
+Arguments the same as in `compile'.
+
+\(fn COMMAND &optional COMINT)" t nil)
+
+(autoload 'project-switch-to-buffer "project" "\
+Switch to another buffer that is related to the current project.
+A buffer is related to a project if its `default-directory'
+is inside the directory hierarchy of the project's root." t nil)
+
+(autoload 'project-kill-buffers "project" "\
+Kill all live buffers belonging to the current project.
+Certain buffers may be \"spared\", see `project-kill-buffers-ignores'." t nil)
+
+(autoload 'project-known-project-roots "project" "\
+Return the list of root directories of all known projects." nil nil)
+
+(defvar project-switch-commands '((102 "Find file" project-find-file) (103 "Find regexp" project-find-regexp) (100 "Dired" project-dired) (118 "VC-Dir" project-vc-dir) (101 "Eshell" project-eshell)) "\
+Alist mapping keys to project switching menu entries.
+Used by `project-switch-project' to construct a dispatch menu of
+commands available upon \"switching\" to another project.
+
+Each element is of the form (KEY LABEL COMMAND), where COMMAND is the
+command to run when KEY is pressed.  LABEL is used to distinguish
+the menu entries in the dispatch menu.")
+
+(autoload 'project-switch-project "project" "\
+\"Switch\" to another project by running an Emacs command.
+The available commands are presented as a dispatch menu
+made from `project-switch-commands'." t nil)
 
 (if (fboundp 'register-definition-prefixes) (register-definition-prefixes "project" '("project-")))
 
@@ -26890,7 +27015,7 @@ HELP-TEXT is a text set in `hangul-input-method-help-text'.
 ;;;;;;  0 0))
 ;;; Generated autoloads from leim/quail/indian.el
 
-(if (fboundp 'register-definition-prefixes) (register-definition-prefixes "quail/indian" '("inscript-" "quail-")))
+(if (fboundp 'register-definition-prefixes) (register-definition-prefixes "quail/indian" '("indian-mlm-mozhi-u" "inscript-" "quail-")))
 
 ;;;***
 
@@ -28681,7 +28806,7 @@ For more details, see Info node `(elisp) Extending Rx'.
 
 \(fn NAME [(ARGS...)] RX)" nil t)
 
-(function-put 'rx-define 'lisp-indent-function '1)
+(function-put 'rx-define 'lisp-indent-function 'defun)
 
 (if (fboundp 'register-definition-prefixes) (register-definition-prefixes "rx" '("rx-")))
 
@@ -29948,6 +30073,11 @@ If SEQUENCE is empty, return INITIAL-VALUE and FUNCTION is not called.
 
 \(fn FUNCTION SEQUENCE INITIAL-VALUE)" nil nil)
 
+(autoload 'seq-every-p "seq" "\
+Return non-nil if (PRED element) is non-nil for all elements of SEQUENCE.
+
+\(fn PRED SEQUENCE)" nil nil)
+
 (autoload 'seq-some "seq" "\
 Return non-nil if PRED is satisfied for at least one element of SEQUENCE.
 If so, return the first non-nil value returned by PRED.
@@ -30138,7 +30268,7 @@ have <h1>Very Major Headlines</h1> through <h6>Very Minor Headlines</h6>
 
 <p>Paragraphs only need an opening tag.  Line breaks and multiple spaces are
 ignored unless the text is <pre>preformatted.</pre>  Text can be marked as
-<b>bold</b>, <i>italic</i> or <u>underlined</u> using the normal M-o or
+<strong>bold</strong>, <em>italic</em> or <u>underlined</u> using the normal M-o or
 Edit/Text Properties/Face commands.
 
 Pages can have <a name=\"SOMENAME\">named points</a> and can link other points
@@ -34662,6 +34792,13 @@ Add archive file name handler to `file-name-handler-alist'." (when tramp-archive
 
 ;;;***
 
+;;;### (autoloads nil "tramp-crypt" "net/tramp-crypt.el" (0 0 0 0))
+;;; Generated autoloads from net/tramp-crypt.el
+
+(if (fboundp 'register-definition-prefixes) (register-definition-prefixes "tramp-crypt" '("tramp-crypt-")))
+
+;;;***
+
 ;;;### (autoloads nil "tramp-ftp" "net/tramp-ftp.el" (0 0 0 0))
 ;;; Generated autoloads from net/tramp-ftp.el
 
@@ -35981,7 +36118,10 @@ Note that if FILE is a symbolic link, it will not be resolved --
 the responsible backend system for the symbolic link itself will
 be reported.
 
-\(fn FILE)" nil nil)
+If NO-ERROR is nil, signal an error that no VC backend is
+responsible for the given file.
+
+\(fn FILE &optional NO-ERROR)" nil nil)
 
 (autoload 'vc-next-action "vc" "\
 Do the next logical version control operation on the current fileset.
@@ -36424,6 +36564,13 @@ These are the commands available for use in the file status buffer:
 \\{vc-dir-mode-map}
 
 \(fn DIR &optional BACKEND)" t nil)
+
+(autoload 'vc-dir-bookmark-jump "vc-dir" "\
+Provides the bookmark-jump behavior for a `vc-dir' buffer.
+This implements the `handler' function interface for the record
+type returned by `vc-dir-bookmark-make-record'.
+
+\(fn BMK)" nil nil)
 
 (if (fboundp 'register-definition-prefixes) (register-definition-prefixes "vc-dir" '("vc-")))
 
@@ -38695,6 +38842,7 @@ If LIMIT is non-nil, then do not consider characters beyond LIMIT.
 
 ;;;### (autoloads nil "xref" "progmodes/xref.el" (0 0 0 0))
 ;;; Generated autoloads from progmodes/xref.el
+(push (purecopy '(xref 1 0 1)) package--builtin-versions)
 
 (autoload 'xref-find-backend "xref" nil nil nil)
 
@@ -38920,29 +39068,29 @@ Zone out, completely." t nil)
 ;;;;;;  "electric.el" "emacs-lisp/backquote.el" "emacs-lisp/byte-run.el"
 ;;;;;;  "emacs-lisp/cl-extra.el" "emacs-lisp/cl-macs.el" "emacs-lisp/cl-preloaded.el"
 ;;;;;;  "emacs-lisp/cl-seq.el" "emacs-lisp/eieio-compat.el" "emacs-lisp/eieio-custom.el"
-;;;;;;  "emacs-lisp/eieio-opt.el" "emacs-lisp/eldoc.el" "emacs-lisp/float-sup.el"
-;;;;;;  "emacs-lisp/lisp-mode.el" "emacs-lisp/lisp.el" "emacs-lisp/macroexp.el"
-;;;;;;  "emacs-lisp/map-ynp.el" "emacs-lisp/nadvice.el" "emacs-lisp/syntax.el"
-;;;;;;  "emacs-lisp/timer.el" "env.el" "epa-hook.el" "erc/erc-autoaway.el"
-;;;;;;  "erc/erc-button.el" "erc/erc-capab.el" "erc/erc-compat.el"
-;;;;;;  "erc/erc-dcc.el" "erc/erc-desktop-notifications.el" "erc/erc-ezbounce.el"
-;;;;;;  "erc/erc-fill.el" "erc/erc-identd.el" "erc/erc-imenu.el"
-;;;;;;  "erc/erc-join.el" "erc/erc-list.el" "erc/erc-log.el" "erc/erc-match.el"
-;;;;;;  "erc/erc-menu.el" "erc/erc-netsplit.el" "erc/erc-notify.el"
-;;;;;;  "erc/erc-page.el" "erc/erc-pcomplete.el" "erc/erc-replace.el"
-;;;;;;  "erc/erc-ring.el" "erc/erc-services.el" "erc/erc-sound.el"
-;;;;;;  "erc/erc-speedbar.el" "erc/erc-spelling.el" "erc/erc-stamp.el"
-;;;;;;  "erc/erc-track.el" "erc/erc-truncate.el" "erc/erc-xdcc.el"
-;;;;;;  "eshell/em-alias.el" "eshell/em-banner.el" "eshell/em-basic.el"
-;;;;;;  "eshell/em-cmpl.el" "eshell/em-dirs.el" "eshell/em-glob.el"
-;;;;;;  "eshell/em-hist.el" "eshell/em-ls.el" "eshell/em-pred.el"
-;;;;;;  "eshell/em-prompt.el" "eshell/em-rebind.el" "eshell/em-script.el"
-;;;;;;  "eshell/em-smart.el" "eshell/em-term.el" "eshell/em-tramp.el"
-;;;;;;  "eshell/em-unix.el" "eshell/em-xtra.el" "facemenu.el" "faces.el"
-;;;;;;  "files.el" "font-core.el" "font-lock.el" "format.el" "frame.el"
-;;;;;;  "help.el" "hfy-cmap.el" "ibuf-ext.el" "indent.el" "international/characters.el"
-;;;;;;  "international/charprop.el" "international/charscript.el"
-;;;;;;  "international/cp51932.el" "international/eucjp-ms.el" "international/mule-cmds.el"
+;;;;;;  "emacs-lisp/eieio-opt.el" "emacs-lisp/float-sup.el" "emacs-lisp/lisp-mode.el"
+;;;;;;  "emacs-lisp/lisp.el" "emacs-lisp/macroexp.el" "emacs-lisp/map-ynp.el"
+;;;;;;  "emacs-lisp/nadvice.el" "emacs-lisp/syntax.el" "emacs-lisp/timer.el"
+;;;;;;  "env.el" "epa-hook.el" "erc/erc-autoaway.el" "erc/erc-button.el"
+;;;;;;  "erc/erc-capab.el" "erc/erc-compat.el" "erc/erc-dcc.el" "erc/erc-desktop-notifications.el"
+;;;;;;  "erc/erc-ezbounce.el" "erc/erc-fill.el" "erc/erc-identd.el"
+;;;;;;  "erc/erc-imenu.el" "erc/erc-join.el" "erc/erc-list.el" "erc/erc-log.el"
+;;;;;;  "erc/erc-match.el" "erc/erc-menu.el" "erc/erc-netsplit.el"
+;;;;;;  "erc/erc-notify.el" "erc/erc-page.el" "erc/erc-pcomplete.el"
+;;;;;;  "erc/erc-replace.el" "erc/erc-ring.el" "erc/erc-services.el"
+;;;;;;  "erc/erc-sound.el" "erc/erc-speedbar.el" "erc/erc-spelling.el"
+;;;;;;  "erc/erc-stamp.el" "erc/erc-track.el" "erc/erc-truncate.el"
+;;;;;;  "erc/erc-xdcc.el" "eshell/em-alias.el" "eshell/em-banner.el"
+;;;;;;  "eshell/em-basic.el" "eshell/em-cmpl.el" "eshell/em-dirs.el"
+;;;;;;  "eshell/em-glob.el" "eshell/em-hist.el" "eshell/em-ls.el"
+;;;;;;  "eshell/em-pred.el" "eshell/em-prompt.el" "eshell/em-rebind.el"
+;;;;;;  "eshell/em-script.el" "eshell/em-smart.el" "eshell/em-term.el"
+;;;;;;  "eshell/em-tramp.el" "eshell/em-unix.el" "eshell/em-xtra.el"
+;;;;;;  "facemenu.el" "faces.el" "files.el" "font-core.el" "font-lock.el"
+;;;;;;  "format.el" "frame.el" "help.el" "hfy-cmap.el" "ibuf-ext.el"
+;;;;;;  "indent.el" "international/characters.el" "international/charprop.el"
+;;;;;;  "international/charscript.el" "international/cp51932.el"
+;;;;;;  "international/eucjp-ms.el" "international/mule-cmds.el"
 ;;;;;;  "international/mule-conf.el" "international/mule.el" "international/uni-bidi.el"
 ;;;;;;  "international/uni-brackets.el" "international/uni-category.el"
 ;;;;;;  "international/uni-combining.el" "international/uni-comment.el"

@@ -1599,12 +1599,13 @@ parameters represent the user's stated preference; otherwise, use
 This parameter specifies a relative position of the frame's
 window-system window in the stacking (Z-) order of the frame's display.
 
-If this is @code{above}, the frame's window-system window is displayed
-above all other window-system windows that do not have the @code{above}
-property set.  If this is @code{nil}, the frame's window is displayed below all
-windows that have the @code{above} property set and above all windows
-that have the @code{below} property set.  If this is @code{below}, the
-frame's window is displayed below all windows that do not have the
+If this is @code{above}, the window-system will display the window
+that corresponds to the frame above all other window-system windows
+that do not have the @code{above} property set.  If this is
+@code{nil}, the frame's window is displayed below all windows that
+have the @code{above} property set and above all windows that have the
+@code{below} property set.  If this is @code{below}, the frame's
+window is displayed below all windows that do not have the
 @code{below} property set.
 
 To position the frame above or below a specific other frame use the
@@ -2173,7 +2174,7 @@ it on an undecorated frame.
 @item override-redirect
 @cindex override redirect frames
 If non-@code{nil}, this means that this is an @dfn{override redirect}
-frame---a frame not handled by window managers under X.  Override
+frame---a frame not handled by window managers under X@.  Override
 redirect frames have no window manager decorations, can be positioned
 and resized only via Emacs' positioning and resizing functions and are
 usually drawn on top of all other frames.  Setting this parameter has
@@ -3975,11 +3976,11 @@ If @var{color} is not defined, the value is @code{nil}.
 (color-values "black")
      @result{} (0 0 0)
 (color-values "white")
-     @result{} (65280 65280 65280)
+     @result{} (65535 65535 65535)
 (color-values "red")
-     @result{} (65280 0 0)
+     @result{} (65535 0 0)
 (color-values "pink")
-     @result{} (65280 49152 51968)
+     @result{} (65535 49344 52171)
 (color-values "hungry")
      @result{} nil
 @end example

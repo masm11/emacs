@@ -163,7 +163,9 @@
 (defvar c-doc-line-join-re)
 (defvar c-doc-bright-comment-start-re)
 (defvar c-doc-line-join-end-ch)
-(defvar c-fl-syn-tab-region)
+(cc-bytecomp-defvar c-min-syn-tab-mkr)
+(cc-bytecomp-defvar c-max-syn-tab-mkr)
+(cc-bytecomp-defun c-clear-syn-tab)
 (cc-bytecomp-defun c-clear-string-fences)
 (cc-bytecomp-defun c-restore-string-fences)
 
@@ -1580,6 +1582,7 @@ comment at the start of cc-engine.el for more info."
 	  (save-excursion (backward-char)
 			  (looking-at "\\s("))
 	  (c-crosses-statement-barrier-p (point) end)))))
+(make-obsolete 'c-at-expression-start-p nil "CC mode 5.35")
 
 
 ;; A set of functions that covers various idiosyncrasies in
@@ -1910,52 +1913,29 @@ comment at the start of cc-engine.el for more info."
 (defun c-enclosing-c++-attribute ()
   ;; If we're in C++ Mode, and point is within a correctly balanced [[ ... ]]
   ;; attribute structure, return a cons of its starting and ending positions.
-  ;; Otherwise, return nil.  We use the c-{in,is}-sws-face text properties for
-  ;; this determination, this macro being intended only for use in the *-sws-*
-  ;; functions and macros.  The match data are NOT preserved over this macro.
-  (let (attr-end pos-is-sws)
-     (and
-      (c-major-mode-is 'c++-mode)
-      (> (point) (point-min))
-      (setq pos-is-sws
-	    (if (get-text-property (1- (point)) 'c-is-sws)
-		(1- (point))
-	      (1- (previous-single-property-change
-		   (point) 'c-is-sws nil (point-min)))))
-      (save-excursion
-	(goto-char pos-is-sws)
-	(setq attr-end (c-looking-at-c++-attribute)))
-      (> attr-end (point))
-      (cons pos-is-sws attr-end))))
-
-(defun c-slow-enclosing-c++-attribute ()
-  ;; Like `c-enclosing-c++-attribute', but does not depend on the c-i[ns]-sws
-  ;; properties being set.
+  ;; Otherwise, return nil.
   (and
    (c-major-mode-is 'c++-mode)
    (save-excursion
-     (let ((paren-state (c-parse-state))
+     (let ((lim (max (- (point) 200) (point-min)))
 	   cand)
        (while
-	   (progn
-	     (setq cand
-		   (catch 'found-cand
-		     (while (cdr paren-state)
-		       (when (and (numberp (car paren-state))
-				  (numberp (cadr paren-state))
-				  (eq (car paren-state)
-				      (1+ (cadr paren-state)))
-				  (eq (char-after (car paren-state)) ?\[)
-				  (eq (char-after (cadr paren-state)) ?\[))
-			 (throw 'found-cand (cadr paren-state)))
-		       (setq paren-state (cdr paren-state)))))
-	     (and cand
-		  (not
-		   (and (c-go-list-forward cand)
-			(eq (char-before) ?\])
-			(eq (char-before (1- (point))) ?\])))))
-	 (setq paren-state (cdr paren-state)))
-       (and cand (cons cand (point)))))))
+	   (and
+	    (progn
+	      (skip-chars-backward "^[;{}" lim)
+	      (eq (char-before) ?\[))
+	    (not (eq (char-before (1- (point))) ?\[))
+	    (> (point) lim))
+	 (backward-char))
+       (and (eq (char-before) ?\[)
+	    (eq (char-before (1- (point))) ?\[)
+	    (progn (backward-char 2) t)
+	    (setq cand (point))
+	    (c-go-list-forward nil (min (+ (point) 200) (point-max)))
+	    (eq (char-before) ?\])
+	    (eq (char-before (1- (point))) ?\])
+	    (not (c-literal-limits))
+	    (cons cand (point)))))))
 
 (defun c-invalidate-sws-region-before (beg end)
   ;; Called from c-before-change.  BEG and END are the bounds of the change
@@ -3003,9 +2983,7 @@ comment at the start of cc-engine.el for more info."
 				 c-block-comment-awkward-chars)))
 		 (and (nth 4 s) (nth 7 s) ; Line comment
 		      (not (memq (char-before here) '(?\\ ?\n)))))))
-	    (c-with-extended-string-fences
-	     pos here
-	     (setq s (parse-partial-sexp pos here nil nil s))))
+	    (setq s (parse-partial-sexp pos here nil nil s)))
 	  (when (not (eq near-pos here))
 	    (c-semi-put-near-cache-entry here s))
 	  (cond
@@ -3137,7 +3115,7 @@ comment at the start of cc-engine.el for more info."
 	       (not base)   ; FIXME!!! Compare base and far-base??
 					; (2019-05-21)
 	       (not end)
-	       (> here end))
+	       (>= here end))
 	      (progn
 		(setq far-base-and-state (c-parse-ps-state-below here)
 		      far-base (car far-base-and-state)
@@ -3150,7 +3128,7 @@ comment at the start of cc-engine.el for more info."
 	      (or
 	       (and (> here base) (null end))
 	       (null (nth 8 s))
-	       (and end (> here end))
+	       (and end (>= here end))
 	       (not
 		(or
 		 (and (nth 3 s)		; string
@@ -3208,6 +3186,24 @@ comment at the start of cc-engine.el for more info."
   (setq c-lit-pos-cache-limit (min c-lit-pos-cache-limit pos)
 	c-semi-near-cache-limit (min c-semi-near-cache-limit pos)
 	c-full-near-cache-limit (min c-full-near-cache-limit pos)))
+
+(defun c-foreign-truncate-lit-pos-cache (beg _end)
+  "Truncate CC Mode's literal cache.
+
+This function should be added to the `before-change-functions'
+hook by major modes that use CC Mode's filling functionality
+without initializing CC Mode.  Currently (2020-06) these are
+js-mode and mhtml-mode."
+  (c-truncate-lit-pos-cache beg))
+
+(defun c-foreign-init-lit-pos-cache ()
+  "Initialize CC Mode's literal cache.
+
+This function should be called from the mode functions of major
+modes which use CC Mode's filling functionality without
+initializing CC Mode.  Currently (2020-06) these are js-mode and
+mhtml-mode."
+  (c-truncate-lit-pos-cache 1))
 
 
 ;; A system for finding noteworthy parens before the point.
@@ -11899,17 +11895,6 @@ comment at the start of cc-engine.el for more info."
 			  (cons (cons beg end) type))
 		    (cons (list beg) type)))))
 	(error nil))))
-
-(defun c-looking-at-bos (&optional _lim)
-  ;; Return non-nil if between two statements or declarations, assuming
-  ;; point is not inside a literal or comment.
-  ;;
-  ;; Obsolete - `c-at-statement-start-p' or `c-at-expression-start-p'
-  ;; are recommended instead.
-  ;;
-  ;; This function might do hidden buffer changes.
-  (c-at-statement-start-p))
-(make-obsolete 'c-looking-at-bos 'c-at-statement-start-p "22.1")
 
 (defun c-looking-at-statement-block ()
   ;; Point is at an opening brace.  If this is a statement block (i.e. the

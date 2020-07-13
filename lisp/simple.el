@@ -211,9 +211,11 @@ all other buffers."
   :type '(choice (const :tag "No default" ignore)
                  (const :tag "Single next-error capable buffer on selected frame"
                         next-error-buffer-on-selected-frame)
+                 (const :tag "Current buffer if next-error capable and outside navigation"
+                        next-error-buffer-unnavigated-current)
                  (function :tag "Other function"))
   :group 'next-error
-  :version "27.1")
+  :version "28.1")
 
 (defcustom next-error-found-function #'ignore
   "Function called when a next locus is found and displayed.
@@ -240,6 +242,21 @@ from which next-error navigated, and a target buffer TO-BUFFER."
     (if (eq (length window-buffers) 1)
         (car window-buffers))))
 
+(defun next-error-buffer-unnavigated-current (&optional avoid-current
+                                                        extra-test-inclusive
+                                                        extra-test-exclusive)
+  "Try the current buffer when outside navigation.
+But return nil if we navigated to the current buffer by the means
+of `next-error' command.  Othewise, return it if it's next-error
+capable."
+  ;; Check that next-error-buffer has no buffer-local value
+  ;; (i.e. we never navigated to the current buffer from another),
+  ;; and the current buffer is a `next-error' capable buffer.
+  (if (and (not (local-variable-p 'next-error-buffer))
+           (next-error-buffer-p (current-buffer) avoid-current
+                                extra-test-inclusive extra-test-exclusive))
+      (current-buffer)))
+
 (defun next-error-find-buffer (&optional avoid-current
 					 extra-test-inclusive
 					 extra-test-exclusive)
@@ -260,24 +277,16 @@ that buffer is rejected."
    (funcall next-error-find-buffer-function avoid-current
                                             extra-test-inclusive
                                             extra-test-exclusive)
-   ;; 2. If next-error-buffer has no buffer-local value
-   ;; (i.e. never navigated to the current buffer from another),
-   ;; and the current buffer is a `next-error' capable buffer,
-   ;; use it unconditionally, so next-error will always use it.
-   (if (and (not (local-variable-p 'next-error-buffer))
-            (next-error-buffer-p (current-buffer) avoid-current
-			         extra-test-inclusive extra-test-exclusive))
-       (current-buffer))
-   ;; 3. If next-error-last-buffer is an acceptable buffer, use that.
+   ;; 2. If next-error-last-buffer is an acceptable buffer, use that.
    (if (and next-error-last-buffer
             (next-error-buffer-p next-error-last-buffer avoid-current
                                  extra-test-inclusive extra-test-exclusive))
        next-error-last-buffer)
-   ;; 4. If the current buffer is acceptable, choose it.
+   ;; 3. If the current buffer is acceptable, choose it.
    (if (next-error-buffer-p (current-buffer) avoid-current
 			    extra-test-inclusive extra-test-exclusive)
        (current-buffer))
-   ;; 5. Look for any acceptable buffer.
+   ;; 4. Look for any acceptable buffer.
    (let ((buffers (buffer-list)))
      (while (and buffers
                  (not (next-error-buffer-p
@@ -285,7 +294,7 @@ that buffer is rejected."
 		       extra-test-inclusive extra-test-exclusive)))
        (setq buffers (cdr buffers)))
      (car buffers))
-   ;; 6. Use the current buffer as a last resort if it qualifies,
+   ;; 5. Use the current buffer as a last resort if it qualifies,
    ;; even despite AVOID-CURRENT.
    (and avoid-current
 	(next-error-buffer-p (current-buffer) nil
@@ -293,7 +302,7 @@ that buffer is rejected."
 	(progn
 	  (message "This is the only buffer with error message locations")
 	  (current-buffer)))
-   ;; 7. Give up.
+   ;; 6. Give up.
    (error "No buffers contain error message locations")))
 
 (defun next-error (&optional arg reset)
@@ -1613,8 +1622,11 @@ display the result of expression evaluation."
   (let ((minibuffer-completing-symbol t))
     (minibuffer-with-setup-hook
         (lambda ()
-          ;; FIXME: call emacs-lisp-mode (see also
-          ;; `eldoc--eval-expression-setup')?
+          ;; FIXME: instead of just applying the syntax table, maybe
+          ;; use a special major mode tailored to reading Lisp
+          ;; expressions from the minibuffer? (`emacs-lisp-mode'
+          ;; doesn't preserve the necessary keybindings.)
+          (set-syntax-table emacs-lisp-mode-syntax-table)
           (add-hook 'completion-at-point-functions
                     #'elisp-completion-at-point nil t)
           (run-hooks 'eval-expression-minibuffer-setup-hook))
@@ -3941,7 +3953,12 @@ is used for ERROR-BUFFER.
 
 Optional seventh arg DISPLAY-ERROR-BUFFER, if non-nil, means to
 display the error buffer if there were any errors.  When called
-interactively, this is t."
+interactively, this is t.
+
+Non-nil REGION-NONCONTIGUOUS-P means that the region is composed of
+noncontiguous pieces.  The most common example of this is a
+rectangular region, where the pieces are separated by newline
+characters."
   (interactive (let (string)
 		 (unless (mark)
 		   (user-error "The mark is not set now, so there is no region"))
@@ -3968,7 +3985,7 @@ interactively, this is t."
 	exit-status)
     ;; Unless a single contiguous chunk is selected, operate on multiple chunks.
     (if region-noncontiguous-p
-        (let ((input (concat (funcall region-extract-function 'delete) "\n"))
+        (let ((input (concat (funcall region-extract-function (when replace 'delete)) "\n"))
               output)
           (with-temp-buffer
             (insert input)
@@ -3976,9 +3993,24 @@ interactively, this is t."
                                  shell-file-name t t
                                  nil shell-command-switch
                                  command)
-            (setq output (split-string (buffer-string) "\n")))
-          (goto-char start)
-          (funcall region-insert-function output))
+            (setq output (split-string (buffer-substring
+                                        (point-min)
+                                        ;; Trim the trailing newline.
+                                        (if (eq (char-before (point-max)) ?\n)
+                                            (1- (point-max))
+                                          (point-max)))
+                                       "\n")))
+          (cond
+           (replace
+            (goto-char start)
+            (funcall region-insert-function output))
+           (t
+            (let ((buffer (get-buffer-create
+                           (or output-buffer "*Shell Command Output*"))))
+              (with-current-buffer buffer
+                (erase-buffer)
+                (funcall region-insert-function output))
+              (display-message-or-buffer buffer)))))
       (if (or replace
               (and output-buffer
                    (not (or (bufferp output-buffer) (stringp output-buffer)))))

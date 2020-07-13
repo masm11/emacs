@@ -17,6 +17,13 @@ GNU General Public License for more details.
 You should have received a copy of the GNU General Public License
 along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>.  */
 
+/* FIXME: This code is problematic; it misuses GTK, so the GTK
+   developers don't think they should fix the resulting problems in GTK
+   itself.  The right way to fix this is by rewriting the code in Emacs
+   to use GTK3 properly.  As of 2020, there is a project to do this.
+   Talk with Yuuki Harano <masm+emacs@masm11.me> if you are interested
+   in doing substantial work on this.  */
+
 #include <config.h>
 
 #ifdef USE_GTK
@@ -1568,10 +1575,15 @@ xg_free_frame_widgets (struct frame *f)
       FRAME_X_RAW_DRAWABLE (f) = 0;
 #endif
       FRAME_GTK_OUTER_WIDGET (f) = 0;
+      if (x->ttip_widget)
+        {
+          /* Remove ttip_lbl from ttip_widget's custom slot before
+             destroying it, to avoid double-free (Bug#41239).  */
+          gtk_tooltip_set_custom (x->ttip_widget, NULL);
+          g_object_unref (G_OBJECT (x->ttip_widget));
+        }
       if (x->ttip_lbl)
         gtk_widget_destroy (x->ttip_lbl);
-      if (x->ttip_widget)
-        g_object_unref (G_OBJECT (x->ttip_widget));
     }
 }
 

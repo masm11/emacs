@@ -397,6 +397,26 @@ synchronously."
   :type 'boolean
   :version "25.1")
 
+(defcustom package-name-column-width 30
+  "Column width for the Package name in the package menu."
+  :type 'number
+  :version "28.1")
+
+(defcustom package-version-column-width 14
+  "Column width for the Package version in the package menu."
+  :type 'number
+  :version "28.1")
+
+(defcustom package-status-column-width 12
+  "Column width for the Package status in the package menu."
+  :type 'number
+  :version "28.1")
+
+(defcustom package-archive-column-width 8
+  "Column width for the Package status in the package menu."
+  :type 'number
+  :version "28.1")
+
 
 ;;; `package-desc' object definition
 ;; This is the struct used internally to represent packages.
@@ -421,9 +441,9 @@ synchronously."
                  &aux
                  (name (intern name-string))
                  (version (version-to-list version-string))
-                 (reqs (mapcar #'(lambda (elt)
-                                   (list (car elt)
-                                         (version-to-list (cadr elt))))
+                 (reqs (mapcar (lambda (elt)
+                                 (list (car elt)
+                                       (version-to-list (cadr elt))))
                                (if (eq 'quote (car requirements))
                                    (nth 1 requirements)
                                  requirements)))
@@ -670,9 +690,9 @@ updates `package-alist'."
       (progn (package-load-all-descriptors)
              package-alist)))
 
-(defun define-package (_name-string _version-string
-                                    &optional _docstring _requirements
-                                    &rest _extra-properties)
+(defun define-package ( _name-string _version-string
+                        &optional _docstring _requirements
+                        &rest _extra-properties)
   "Define a new package.
 NAME-STRING is the name of the package, as a string.
 VERSION-STRING is the version of the package, as a string.
@@ -1199,8 +1219,8 @@ The return result is a `package-desc'."
                              cipher-algorithm
                              digest-algorithm
                              compress-algorithm))
-(declare-function epg-verify-string "epg" (context signature
-                                                   &optional signed-text))
+(declare-function epg-verify-string "epg" ( context signature
+                                            &optional signed-text))
 (declare-function epg-context-result-for "epg" (context name))
 (declare-function epg-signature-status "epg" (signature) t)
 (declare-function epg-signature-to-string "epg" (signature))
@@ -2750,11 +2770,11 @@ Letters do not insert themselves; instead, they are commands.
                             (package-menu--transaction-status
                              package-menu--transaction-status)))
   (setq tabulated-list-format
-        `[("Package" 18 package-menu--name-predicate)
-          ("Version" 13 package-menu--version-predicate)
-          ("Status"  10 package-menu--status-predicate)
+        `[("Package" ,package-name-column-width package-menu--name-predicate)
+          ("Version" ,package-version-column-width package-menu--version-predicate)
+          ("Status"  ,package-status-column-width  package-menu--status-predicate)
           ,@(if (cdr package-archives)
-                '(("Archive" 10 package-menu--archive-predicate)))
+                `(("Archive" ,package-archive-column-width package-menu--archive-predicate)))
           ("Description" 0 package-menu--description-predicate)])
   (setq tabulated-list-padding 2)
   (setq tabulated-list-sort-key (cons "Status" nil))
@@ -3282,7 +3302,7 @@ If optional arg BUTTON is non-nil, describe its associated package."
   '(("install," "delete," "unmark," ("execute" . 1))
     ("next," "previous")
     ("Hide-package," "(-toggle-hidden")
-    ("refresh-contents," "g-redisplay," "filter," "help")))
+    ("g-refresh-contents," "/-filter," "help")))
 
 (defun package--prettify-quick-help-key (desc)
   "Prettify DESC to be displayed as a help menu."
@@ -3290,7 +3310,7 @@ If optional arg BUTTON is non-nil, describe its associated package."
       (if (listp (cdr desc))
           (mapconcat #'package--prettify-quick-help-key desc "   ")
         (let ((place (cdr desc))
-              (out (car desc)))
+              (out (copy-sequence (car desc))))
           (add-text-properties place (1+ place)
                                '(face (bold font-lock-warning-face))
                                out)
@@ -3770,6 +3790,9 @@ packages."
                         (package--has-keyword-p pkg-desc keyword))
                       (concat "keyword:" (string-join keyword ",")))))
 
+(define-obsolete-function-alias
+  'package-menu-filter #'package-menu-filter-by-keyword "27.1")
+
 (defun package-menu-filter-by-name (name)
   "Filter the \"*Packages*\" buffer by NAME regexp.
 Display only packages with name that matches regexp NAME.
@@ -3848,9 +3871,9 @@ If VERSION is nil or the empty string, show all packages."
         (package-menu--generate t t)
       (package-menu--filter-by
        (let ((fun (pcase predicate
-                    ('= 'version-list-=)
-                    ('< 'version-list-<)
-                    ('> '(lambda (a b) (not (version-list-<= a b))))
+                    ('= #'version-list-=)
+                    ('< #'version-list-<)
+                    ('> (lambda (a b) (not (version-list-<= a b))))
                     (_ (error "Unknown predicate: %s" predicate))))
              (ver (version-to-list version)))
          (lambda (pkg-desc)

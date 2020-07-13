@@ -72,6 +72,7 @@
 ;;                                          by git, so it's probably
 ;;                                          not a good idea.
 ;; - merge-news (file)                      see `merge-file'
+;; - mark-resolved (file)                          OK
 ;; - steal-lock (file &optional revision)          NOT NEEDED
 ;; HISTORY FUNCTIONS
 ;; * print-log (files buffer &optional shortlog start-revision limit)   OK
@@ -100,6 +101,7 @@
 ;; - rename-file (old new)                         OK
 ;; - find-file-hook ()                             OK
 ;; - conflicted-files                              OK
+;; - repository-url (file-or-dir)                  OK
 
 ;;; Code:
 
@@ -733,6 +735,7 @@ or an empty string if none."
                (with-current-buffer standard-output
                  (vc-git--out-ok "symbolic-ref" "HEAD"))))
 	(stash-list (vc-git-stash-list))
+        (default-directory dir)
 
 	branch remote remote-url stash-button stash-string)
     (if (string-match "^\\(refs/heads/\\)?\\(.+\\)$" str)
@@ -745,14 +748,8 @@ or an empty string if none."
                                     (concat "branch." branch ".remote")))))
 	  (when (string-match "\\([^\n]+\\)" remote)
 	    (setq remote (match-string 1 remote)))
-	  (when remote
-	    (setq remote-url
-		  (with-output-to-string
-		    (with-current-buffer standard-output
-		      (vc-git--out-ok "config"
-                                      (concat "remote." remote ".url"))))))
-	  (when (string-match "\\([^\n]+\\)" remote-url)
-	    (setq remote-url (match-string 1 remote-url))))
+          (when (> (length remote) 0)
+	    (setq remote-url (vc-git-repository-url dir remote))))
       (setq branch "not (detached HEAD)"))
     (when stash-list
       (let* ((len (length stash-list))
@@ -807,7 +804,7 @@ or an empty string if none."
      (propertize "Branch     : " 'face 'font-lock-type-face)
      (propertize branch
 		 'face 'font-lock-variable-name-face)
-     (when remote
+     (when remote-url
        (concat
 	"\n"
 	(propertize "Remote     : " 'face 'font-lock-type-face)
@@ -819,10 +816,10 @@ or an empty string if none."
      (when (file-exists-p (expand-file-name ".git/rebase-apply" (vc-git-root dir)))
        (propertize  "\nRebase     : in progress" 'face 'font-lock-warning-face))
      (if stash-list
-       (concat
-        (propertize "\nStash      : " 'face 'font-lock-type-face)
-        stash-button
-        stash-string)
+         (concat
+          (propertize "\nStash      : " 'face 'font-lock-type-face)
+          stash-button
+          stash-string)
        (concat
 	(propertize "\nStash      : " 'face 'font-lock-type-face)
 	(propertize "Nothing stashed"
@@ -1080,6 +1077,13 @@ This prompts for a branch to merge from."
           (when (member state '("AU" "UD" "UA" ;; "DD"
                                 "DU" "AA" "UU"))
             (push (expand-file-name file directory) files)))))))
+
+(defun vc-git-repository-url (file-or-dir &optional remote-name)
+  (let ((default-directory (vc-git-root file-or-dir)))
+    (with-temp-buffer
+      (vc-git-command (current-buffer) 0 nil "remote" "get-url"
+                      (or remote-name "origin"))
+      (buffer-substring-no-properties (point-min) (1- (point-max))))))
 
 ;; Everywhere but here, follows vc-git-command, which uses vc-do-command
 ;; from vc-dispatcher.
@@ -1529,6 +1533,9 @@ This requires git 1.8.4 or later, for the \"-L\" option of \"git log\"."
 
 (defun vc-git-rename-file (old new)
   (vc-git-command nil 0 (list old new) "mv" "-f" "--"))
+
+(defun vc-git-mark-resolved (files)
+  (vc-git-command nil 0 files "add"))
 
 (defvar vc-git-extra-menu-map
   (let ((map (make-sparse-keymap)))

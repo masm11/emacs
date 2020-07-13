@@ -199,7 +199,7 @@ The name is made by appending a number to PREFIX, default \"T\"."
     [&optional ["&key" [cl-&key-arg &rest cl-&key-arg]
 		&optional "&allow-other-keys"]]
     [&optional ["&aux" &rest
-		&or (symbolp &optional def-form) symbolp]]
+		&or (cl-lambda-arg &optional def-form) arg]]
     . [&or arg nil])))
 
 (def-edebug-spec cl-&optional-arg
@@ -219,7 +219,7 @@ The name is made by appending a number to PREFIX, default \"T\"."
     [&optional ["&key" cl-&key-arg &rest cl-&key-arg
                 &optional "&allow-other-keys"]]
     [&optional ["&aux" &rest
-                &or (symbolp &optional def-form) symbolp]]
+                &or (cl-lambda-arg &optional def-form) arg]]
     . [&or arg nil])))
 
 (def-edebug-spec cl-type-spec sexp)
@@ -402,7 +402,7 @@ and BODY is implicitly surrounded by (cl-block NAME ...).
 			     arg]]
 		&optional "&allow-other-keys"]]
     [&optional ["&aux" &rest
-		&or (symbolp &optional def-form) symbolp]]
+		&or (cl-macro-arg &optional def-form) arg]]
     [&optional "&environment" arg]
     )))
 
@@ -421,7 +421,7 @@ and BODY is implicitly surrounded by (cl-block NAME ...).
 			     arg]]
 		&optional "&allow-other-keys"]]
     [&optional ["&aux" &rest
-		&or (symbolp &optional def-form) symbolp]]
+		&or (cl-macro-arg &optional def-form) arg]]
     . [&or arg nil])))
 
 ;;;###autoload
@@ -3138,23 +3138,29 @@ Of course, we really can't know that for sure, so it's just a heuristic."
                (cdr (assq sym byte-compile-macro-environment))))))
 
 (pcase-dolist (`(,type . ,pred)
-               '((null		. null)
+               ;; Mostly kept in alphabetical order.
+               '((array		. arrayp)
                  (atom		. atom)
-                 (real		. numberp)
-                 (fixnum	. integerp)
                  (base-char	. characterp)
+                 (boolean	. booleanp)
+                 (bool-vector	. bool-vector-p)
+                 (buffer	. bufferp)
                  (character	. natnump)
-                 ;; "Obvious" mappings.
-                 (string	. stringp)
-                 (list		. listp)
+                 (char-table	. char-table-p)
                  (cons		. consp)
-                 (symbol	. symbolp)
+                 (fixnum	. integerp)
+                 (float		. floatp)
                  (function	. functionp)
                  (integer	. integerp)
-                 (float		. floatp)
-                 (boolean	. booleanp)
+                 (keyword	. keywordp)
+                 (list		. listp)
+                 (number	. numberp)
+                 (null		. null)
+                 (real		. numberp)
+                 (sequence	. sequencep)
+                 (string	. stringp)
+                 (symbol	. symbolp)
                  (vector	. vectorp)
-                 (array		. arrayp)
                  ;; FIXME: Do we really want to consider this a type?
                  (integer-or-marker . integer-or-marker-p)
                  ))

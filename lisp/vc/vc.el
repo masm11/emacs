@@ -553,6 +553,13 @@
 ;;   Return the list of files where conflict resolution is needed in
 ;;   the project that contains DIR.
 ;;   FIXME: what should it do with non-text conflicts?
+;;
+;; - repository-url (file-or-dir &optional remote-name)
+;;
+;;   Returns the URL of the repository of the current checkout
+;;   containing FILE-OR-DIR.  The optional REMOTE-NAME specifies the
+;;   remote (in Git parlance) whose URL is to be returned.  It has
+;;   only a meaning for distributed VCS and is ignored otherwise.
 
 ;;; Changes from the pre-25.1 API:
 ;;
@@ -957,7 +964,7 @@ use."
       (throw 'found bk))))
 
 ;;;###autoload
-(defun vc-responsible-backend (file)
+(defun vc-responsible-backend (file &optional no-error)
   "Return the name of a backend system that is responsible for FILE.
 
 If FILE is already registered, return the
@@ -967,7 +974,10 @@ responsible for FILE is returned.
 
 Note that if FILE is a symbolic link, it will not be resolved --
 the responsible backend system for the symbolic link itself will
-be reported."
+be reported.
+
+If NO-ERROR is nil, signal an error that no VC backend is
+responsible for the given file."
   (or (and (not (file-directory-p file)) (vc-backend file))
       (catch 'found
 	;; First try: find a responsible backend.  If this is for registration,
@@ -975,7 +985,8 @@ be reported."
 	(dolist (backend vc-handled-backends)
 	  (and (vc-call-backend backend 'responsible-p file)
 	       (throw 'found backend))))
-      (error "No VC backend is responsible for %s" file)))
+      (unless no-error
+        (error "No VC backend is responsible for %s" file))))
 
 (defun vc-expand-dirs (file-or-dir-list backend)
   "Expands directories in a file list specification.
@@ -1063,11 +1074,9 @@ BEWARE: this function may change the current buffer."
       (progn                  ;FIXME: Why not `with-current-buffer'? --Stef.
 	(set-buffer vc-parent-buffer)
 	(vc-deduce-fileset not-state-changing allow-unregistered state-model-only-files)))
-     ((and (derived-mode-p 'log-view-mode)
+     ((and (not buffer-file-name)
 	   (setq backend (vc-responsible-backend default-directory)))
       (list backend nil))
-     ((not buffer-file-name)
-       (error "Buffer %s is not associated with a file" (buffer-name)))
      ((and allow-unregistered (not (vc-registered buffer-file-name)))
       (if state-model-only-files
 	  (list (vc-backend-for-registration (buffer-file-name))

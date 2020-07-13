@@ -175,9 +175,8 @@
 
 (defun package-test-suffix-matches (base suffix-list)
   "Return file names matching BASE concatenated with each item in SUFFIX-LIST"
-  (cl-mapcan
-   '(lambda (item) (file-expand-wildcards (concat base item)))
-   suffix-list))
+  (mapcan (lambda (item) (file-expand-wildcards (concat base item)))
+          suffix-list))
 
 (defvar tar-parse-info)
 (declare-function tar-header-name "tar-mode" (cl-x) t) ; defstruct
@@ -266,6 +265,9 @@ Must called from within a `tar-mode' buffer."
     (package-install 'simple-depend)
     (should (package-installed-p 'simple-single))
     (should (package-installed-p 'simple-depend))))
+
+(declare-function macro-problem-func "macro-problem" ())
+(declare-function macro-problem-10-and-90 "macro-problem" ())
 
 (ert-deftest package-test-macro-compilation ()
   "Install a package which includes a dependency."
@@ -416,17 +418,17 @@ Must called from within a `tar-mode' buffer."
 (ert-deftest package-test-list-filter-marked ()
   "Ensure package list is filtered correctly by non-empty mark."
   (with-package-test ()
-    (let ((buf (package-list-packages)))
-      (revert-buffer)
-      (search-forward-regexp "^ +simple-single")
-      (package-menu-mark-install)
-      (package-menu-filter-marked)
-      (goto-char (point-min))
-      (should (re-search-forward "^I +simple-single" nil t))
-      (should (= (count-lines (point-min) (point-max)) 1))
-      (package-menu-mark-unmark)
-      ;; No marked packages in default environment.
-      (should-error (package-menu-filter-marked)))))
+    (package-list-packages)
+    (revert-buffer)
+    (search-forward-regexp "^ +simple-single")
+    (package-menu-mark-install)
+    (package-menu-filter-marked)
+    (goto-char (point-min))
+    (should (re-search-forward "^I +simple-single" nil t))
+    (should (= (count-lines (point-min) (point-max)) 1))
+    (package-menu-mark-unmark)
+    ;; No marked packages in default environment.
+    (should-error (package-menu-filter-marked))))
 
 (ert-deftest package-test-list-filter-by-version ()
   (with-package-menu-test
@@ -616,6 +618,8 @@ Must called from within a `tar-mode' buffer."
 		     (let ((process-environment
 			    (cons (concat "HOME=" homedir)
 				  process-environment)))
+                       (require 'epg-config)
+                       (defvar epg-config--program-alist)
 		       (epg-find-configuration
                         'OpenPGP nil
                         ;; By default we require gpg2 2.1+ due to some

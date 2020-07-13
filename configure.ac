@@ -414,7 +414,11 @@ this option's value should be 'yes', 'no', 'lucid', 'athena', 'motif', 'gtk',
 	  with_x_toolkit=$val
 ])
 
-OPTION_DEFAULT_OFF([wide-int], [prefer wide Emacs integers (typically 62-bit); allows buffer and string size up to 2GB on 32-bit hosts, at the cost of 10% to 30% slowdown of Lisp interpreter and larger memory footprint])
+OPTION_DEFAULT_OFF([wide-int],
+  [prefer wide Emacs integers (typically 62-bit);
+   on 32-bit hosts, this allows buffer and string size up to 2GB,
+   at the cost of 10% to 30% slowdown of Lisp interpreter
+   and larger memory footprint])
 if test "$with_wide_int" = yes; then
   AC_DEFINE([WIDE_EMACS_INT], 1, [Use long long for EMACS_INT if available.])
 fi
@@ -1027,14 +1031,17 @@ AS_IF([test $gl_gcc_warnings = no],
        ;;
   esac
   AS_IF([test $gl_gcc_warnings = yes],
-    [WERROR_CFLAGS=-Werror])
+    [WERROR_CFLAGS=-Werror],
+    [# Use -fanalyzer and related options only if --enable-gcc-warnings,
+     # as they slow GCC considerably.
+     nw="$nw -fanalyzer -Wno-analyzer-double-free -Wno-analyzer-malloc-leak"
+     nw="$nw -Wno-analyzer-null-dereference -Wno-analyzer-use-after-free"])
 
-  nw="$nw -Wcast-align -Wcast-align=strict" # Emacs is tricky with pointers.
+  nw="$nw -Wcast-align=strict"      # Emacs is tricky with pointers.
   nw="$nw -Wduplicated-branches"    # Too many false alarms
   nw="$nw -Wformat-overflow=2"      # False alarms due to GCC bug 80776
   nw="$nw -Wsystem-headers"         # Don't let system headers trigger warnings
   nw="$nw -Woverlength-strings"     # Not a problem these days
-  nw="$nw -Wformat-nonliteral"      # we do this a lot
   nw="$nw -Wvla"                    # Emacs uses <vla.h>.
   nw="$nw -Wunused-const-variable=2" # lisp.h declares const objects.
   nw="$nw -Winline"                 # OK to ignore 'inline'
@@ -1043,7 +1050,6 @@ AS_IF([test $gl_gcc_warnings = no],
   nw="$nw -Wsync-nand"              # irrelevant here, and provokes ObjC warning
   nw="$nw -Wunsafe-loop-optimizations" # OK to suppress unsafe optimizations
   nw="$nw -Wbad-function-cast"      # These casts are no worse than others.
-  nw="$nw -Wabi"                    # Not useful, perceived as noise
 
   # Emacs doesn't care about shadowing; see
   # <https://lists.gnu.org/r/emacs-diffs/2011-11/msg00265.html>.
@@ -1063,26 +1069,12 @@ AS_IF([test $gl_gcc_warnings = no],
   # option problematic.
   nw="$nw -Wsuggest-attribute=pure"
 
-  # This part is merely for shortening the command line,
-  # since -Wall implies -Wswitch.
-  nw="$nw -Wswitch"
-
-  # This part is merely for shortening the command line,
-  # since -Wno-FOO needs to be added below regardless.
-  nw="$nw -Wmissing-field-initializers"
-  nw="$nw -Woverride-init"
-  nw="$nw -Wtype-limits"
-  nw="$nw -Wunused-parameter"
-
   if test "$emacs_cv_clang" = yes; then
-    nw="$nw -Wcast-align"
     nw="$nw -Wdouble-promotion"
-    nw="$nw -Wmissing-braces"
   fi
 
-  # These cause too much noise in the MinGW build
+  # This causes too much noise in the MinGW build.
   if test $opsys = mingw32; then
-    nw="$nw -Wpointer-sign"
     nw="$nw -Wsuggest-attribute=format"
   fi
 
@@ -4257,7 +4249,8 @@ pthread_sigmask strsignal setitimer timer_getoverrun \
 sendto recvfrom getsockname getifaddrs freeifaddrs \
 gai_strerror sync \
 getpwent endpwent getgrent endgrent \
-cfmakeraw cfsetspeed __executable_start log2 pthread_setname_np)
+cfmakeraw cfsetspeed __executable_start log2 pthread_setname_np \
+pthread_set_name_np)
 LIBS=$OLD_LIBS
 
 if test "$ac_cv_func_pthread_setname_np" = "yes"; then
@@ -4587,32 +4580,6 @@ AC_SUBST(CRYPTOLIB)
 AC_SUBST(KRB5LIB)
 AC_SUBST(DESLIB)
 AC_SUBST(KRB4LIB)
-
-AC_ARG_WITH([libgmp],
-  [AS_HELP_STRING([--without-libgmp],
-		  [don't use the GNU Multiple Precision (GMP) library;
-		   this is the default on systems lacking libgmp.])])
-GMP_LIB=
-GMP_OBJ=mini-gmp-emacs.o
-HAVE_GMP=no
-case $with_libgmp in
-  no) ;;
-  yes) HAVE_GMP=yes GMP_LIB=-lgmp;;
-  *) AC_CHECK_HEADERS([gmp.h],
-       [OLIBS=$LIBS
-	AC_SEARCH_LIBS([__gmpz_roinit_n], [gmp])
-	LIBS=$OLIBS
-	case $ac_cv_search___gmpz_roinit_n in
-	  'none needed') HAVE_GMP=yes;;
-	  -*) HAVE_GMP=yes GMP_LIB=$ac_cv_search___gmpz_roinit_n;;
-	esac]);;
-esac
-if test "$HAVE_GMP" = yes; then
-  GMP_OBJ=
-  AC_DEFINE([HAVE_GMP], 1, [Define to 1 if you have recent-enough GMP.])
-fi
-AC_SUBST([GMP_LIB])
-AC_SUBST([GMP_OBJ])
 
 AC_CHECK_HEADERS(valgrind/valgrind.h)
 
@@ -4953,11 +4920,11 @@ case $opsys in
     AC_DEFINE(PTY_TTY_NAME_SPRINTF, [])
     ;;
 
-  gnu | openbsd | qnxnto )
+  gnu | qnxnto )
     AC_DEFINE(FIRST_PTY_LETTER, ['p'])
     ;;
 
-  gnu-linux | gnu-kfreebsd | dragonfly | freebsd | netbsd | darwin | nacl )
+  gnu-linux | gnu-kfreebsd | dragonfly | freebsd | openbsd | netbsd | darwin | nacl )
     dnl if HAVE_GRANTPT
     if test "x$ac_cv_func_grantpt" = xyes; then
       AC_DEFINE(UNIX98_PTYS, 1, [Define if the system has Unix98 PTYs.])
@@ -5785,6 +5752,11 @@ done
 AC_DEFINE_UNQUOTED(EMACS_CONFIG_FEATURES, "${emacs_config_features}",
   [Summary of some of the main features enabled by configure.])
 
+if test -z "$GMP_H"; then
+  HAVE_GMP=yes
+else
+  HAVE_GMP=no
+fi
 AS_ECHO(["  Does Emacs use -lXaw3d?                                 ${HAVE_XAW3D}
   Does Emacs use -lXpm?                                   ${HAVE_XPM}
   Does Emacs use -ljpeg?                                  ${HAVE_JPEG}
@@ -5813,7 +5785,7 @@ AS_ECHO(["  Does Emacs use -lXaw3d?                                 ${HAVE_XAW3D
   Does Emacs use -lxft?                                   ${HAVE_XFT}
   Does Emacs use -lsystemd?                               ${HAVE_LIBSYSTEMD}
   Does Emacs use -ljansson?                               ${HAVE_JSON}
-  Does Emacs use -lgmp?                                   ${HAVE_GMP}
+  Does Emacs use the GMP library?                         ${HAVE_GMP}
   Does Emacs directly use zlib?                           ${HAVE_ZLIB}
   Does Emacs have dynamic modules support?                ${HAVE_MODULES}
   Does Emacs use toolkit scroll bars?                     ${USE_TOOLKIT_SCROLL_BARS}

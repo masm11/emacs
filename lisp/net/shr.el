@@ -135,7 +135,7 @@ same domain as the main data."
 This is used for cid: URLs, and the function is called with the
 cid: URL as the argument.")
 
-(defvar shr-put-image-function 'shr-put-image
+(defvar shr-put-image-function #'shr-put-image
   "Function called to put image and alt string.")
 
 (defface shr-strike-through '((t :strike-through t))
@@ -185,12 +185,14 @@ and other things:
 (defvar shr-depth 0)
 (defvar shr-warning nil)
 (defvar shr-ignore-cache nil)
-(defvar shr-target-id nil)
 (defvar shr-table-separator-length 1)
 (defvar shr-table-separator-pixel-width 0)
 (defvar shr-table-id nil)
 (defvar shr-current-font nil)
 (defvar shr-internal-bullet nil)
+
+(defvar shr-target-id nil
+  "Target fragment identifier anchor.")
 
 (defvar shr-map
   (let ((map (make-sparse-keymap)))
@@ -365,25 +367,20 @@ If the URL is already at the front of the kill ring act like
     (shr-copy-url url)))
 
 (defun shr--current-link-region ()
-  (let ((current (get-text-property (point) 'shr-url))
-        start)
-    (save-excursion
-      ;; Go to the beginning.
-      (while (and (not (bobp))
-		  (equal (get-text-property (point) 'shr-url) current))
-        (forward-char -1))
-      (unless (equal (get-text-property (point) 'shr-url) current)
-        (forward-char 1))
-      (setq start (point))
-      ;; Go to the end.
-      (while (and (not (eobp))
-                  (equal (get-text-property (point) 'shr-url) current))
-        (forward-char 1))
-      (list start (point)))))
+  "Return the start and end positions of the URL at point, if any.
+Value is a pair of positions (START . END) if there is a non-nil
+`shr-url' text property at point; otherwise nil."
+  (when (get-text-property (point) 'shr-url)
+    (let* ((end (or (next-single-property-change (point) 'shr-url)
+                    (point-max)))
+           (beg (or (previous-single-property-change end 'shr-url)
+                    (point-min))))
+      (cons beg end))))
 
 (defun shr--blink-link ()
-  (let* ((region (shr--current-link-region))
-         (overlay (make-overlay (car region) (cadr region))))
+  "Briefly fontify URL at point with the face `shr-selected-link'."
+  (when-let* ((region  (shr--current-link-region))
+              (overlay (make-overlay (car region) (cdr region))))
     (overlay-put overlay 'face 'shr-selected-link)
     (run-at-time 1 nil (lambda ()
                          (delete-overlay overlay)))))
@@ -437,7 +434,7 @@ the URL of the image to the kill buffer instead."
     (if (not url)
 	(message "No image under point")
       (message "Inserting %s..." url)
-      (url-retrieve url 'shr-image-fetched
+      (url-retrieve url #'shr-image-fetched
 		    (list (current-buffer) (1- (point)) (point-marker))
 		    t))))
 
@@ -463,7 +460,7 @@ size, and full-buffer size."
 	(when (> (- (point) start) 2)
 	  (delete-region start (1- (point)))))
       (message "Inserting %s..." url)
-      (url-retrieve url 'shr-image-fetched
+      (url-retrieve url #'shr-image-fetched
 		    (list (current-buffer) (1- (point)) (point-marker)
 			  (list (cons 'size
 				      (cond ((or (eq size 'default)
@@ -493,7 +490,7 @@ size, and full-buffer size."
 	  ((fboundp function)
 	   (apply function dom args))
 	  (t
-	   (apply 'shr-generic dom args)))))
+           (apply #'shr-generic dom args)))))
 
 (defun shr-descend (dom)
   (let ((function
@@ -531,13 +528,13 @@ size, and full-buffer size."
                (funcall function dom))
               (t
                (shr-generic dom)))
-	(when (and shr-target-id
-		   (equal (dom-attr dom 'id) shr-target-id))
+        (when-let* ((id (dom-attr dom 'id)))
 	  ;; If the element was empty, we don't have anything to put the
 	  ;; anchor on.  So just insert a dummy character.
 	  (when (= start (point))
-	    (insert "*"))
-	  (put-text-property start (1+ start) 'shr-target-id shr-target-id))
+            (insert ?*)
+            (put-text-property (1- (point)) (point) 'display ""))
+          (put-text-property start (1+ start) 'shr-target-id id))
 	;; If style is set, then this node has set the color.
 	(when style
 	  (shr-colorize-region
@@ -730,9 +727,10 @@ size, and full-buffer size."
         (let ((gap-start (point))
               (face (get-text-property (point) 'face)))
           ;; Extend the background to the end of the line.
-          (if face
-              (insert (propertize "\n" 'face (shr-face-background face)))
-            (insert "\n"))
+          (insert ?\n)
+          (when face
+            (put-text-property (1- (point)) (point)
+                               'face (shr-face-background face)))
 	  (shr-indent)
           (when (and (> (1- gap-start) (point-min))
                      (get-text-property (point) 'shr-url)
@@ -935,12 +933,11 @@ size, and full-buffer size."
 
 (defun shr-indent ()
   (when (> shr-indentation 0)
-    (insert
-     (if (not shr-use-fonts)
-	 (make-string shr-indentation ?\s)
-       (propertize " "
-		   'display
-		   `(space :width (,shr-indentation)))))))
+    (if (not shr-use-fonts)
+        (insert-char ?\s shr-indentation)
+      (insert ?\s)
+      (put-text-property (1- (point)) (point)
+                         'display `(space :width (,shr-indentation))))))
 
 (defun shr-fontize-dom (dom &rest types)
   (let ((start (point)))
@@ -987,16 +984,11 @@ the mouse click event."
     (cond
      ((not url)
       (message "No link under point"))
-     ((string-match "^mailto:" url)
-      (browse-url-mail url))
+     (external
+      (funcall browse-url-secondary-browser-function url)
+      (shr--blink-link))
      (t
-      (if external
-          (progn
-	    (funcall browse-url-secondary-browser-function url)
-            (shr--blink-link))
-	(browse-url url (if new-window
-			    (not browse-url-new-window-flag)
-			  browse-url-new-window-flag)))))))
+      (browse-url url (xor new-window browse-url-new-window-flag))))))
 
 (defun shr-save-contents (directory)
   "Save the contents from URL in a file."
@@ -1005,7 +997,7 @@ the mouse click event."
     (if (not url)
 	(message "No link under point")
       (url-retrieve (shr-encode-url url)
-		    'shr-store-contents (list url directory)))))
+                    #'shr-store-contents (list url directory)))))
 
 (defun shr-store-contents (status url directory)
   (unless (plist-get status :error)
@@ -1156,7 +1148,6 @@ width/height instead."
 
 ;; url-cache-extract autoloads url-cache.
 (declare-function url-cache-create-filename "url-cache" (url))
-(autoload 'browse-url-mail "browse-url")
 
 (defun shr-get-image-data (url)
   "Get image data for URL.
@@ -1230,7 +1221,7 @@ START, and END.  Note that START and END should be markers."
 		   (funcall shr-put-image-function
 			    image (buffer-substring start end))
 		   (delete-region (point) end))))
-	 (url-retrieve url 'shr-image-fetched
+         (url-retrieve url #'shr-image-fetched
 		       (list (current-buffer) start end)
 		       t t)))))
 
@@ -1497,14 +1488,13 @@ ones, in case fg and bg are nil."
 	(start (point))
 	shr-start)
     (shr-generic dom)
-    (when (and shr-target-id
-	       (equal (dom-attr dom 'name) shr-target-id))
-      ;; We have a zero-length <a name="foo"> element, so just
-      ;; insert...  something.
+    (when-let* ((id (unless (dom-attr dom 'id) ; Handled by `shr-descend'.
+                      (dom-attr dom 'name))))  ; Obsolete since HTML5.
+      ;; We have an empty element, so just insert... something.
       (when (= start (point))
-	(shr-ensure-newline)
-	(insert " "))
-      (put-text-property start (1+ start) 'shr-target-id shr-target-id))
+        (insert ?\s)
+        (put-text-property (1- (point)) (point) 'display ""))
+      (put-text-property start (1+ start) 'shr-target-id id))
     (when url
       (shr-urlify (or shr-start start) (shr-expand-url url) title))))
 
@@ -1679,7 +1669,7 @@ The preference is a float determined from `shr-prefer-media-type'."
              (or alt "")))
           (insert " ")
 	  (url-queue-retrieve
-	   (shr-encode-url url) 'shr-image-fetched
+           (shr-encode-url url) #'shr-image-fetched
 	   (list (current-buffer) start (set-marker (make-marker) (point))
                  (list :width width :height height))
 	   t
@@ -2006,12 +1996,11 @@ BASE is the URL of the HTML being rendered."
     (cond
      ((null tbodies)
       dom)
-     ((= (length tbodies) 1)
+     ((null (cdr tbodies))
       (car tbodies))
      (t
       ;; Table with multiple tbodies.  Convert into a single tbody.
-      `(tbody nil ,@(cl-reduce 'append
-                               (mapcar 'dom-non-text-children tbodies)))))))
+      `(tbody nil ,@(mapcan #'dom-non-text-children tbodies))))))
 
 (defun shr--fix-tbody (tbody)
   (nconc (list 'tbody (dom-attributes tbody))
@@ -2311,8 +2300,8 @@ flags that control whether to collect or render objects."
 	(dolist (column row)
 	  (aset natural-widths i (max (aref natural-widths i) column))
 	  (setq i (1+ i)))))
-    (let ((extra (- (apply '+ (append suggested-widths nil))
-		    (apply '+ (append widths nil))
+    (let ((extra (- (apply #'+ (append suggested-widths nil))
+                    (apply #'+ (append widths nil))
 		    (* shr-table-separator-pixel-width (1+ (length widths)))))
 	  (expanded-columns 0))
       ;; We have extra, unused space, so divide this space amongst the

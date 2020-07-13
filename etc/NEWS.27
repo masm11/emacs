@@ -956,8 +956,8 @@ displays the buffer from the next command in that window.  For example,
 'S-M-right C-h i' displays the "*Info*" buffer in the right window,
 creating the window if necessary.  A special key can be customized to
 display the buffer in the same window, for example, 'S-M-0 C-h e'
-displays the "*Messages*" buffer in the same window.  'S-M-t C-h C-n'
-displays NEWS in a new tab.
+displays the "*Messages*" buffer in the same window.  'S-M-t C-h r'
+displays the Emacs manual in a new tab.
 
 +++
 *** Windmove also supports directional window deletion.
@@ -2053,12 +2053,6 @@ default, and not just the opening element.
 'pcomplete'.  Its UI is slightly different but can be customized to
 behave similarly, e.g. Pcomplete's default cycling can be obtained
 with '(setq completion-cycle-threshold 5)'.
-
----
-*** Eshell no longer re-initializes its keymap every call.
-This allows users to use (define-key eshell-mode-map ...) as usual.
-Some modules have their own minor mode now to account for these
-changes.
 
 +++
 *** Expansion of history event designators is disabled by default.

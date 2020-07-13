@@ -763,6 +763,8 @@ The character information includes:
                        (to (nth 4 composition))
                        glyph)
                   (if (fontp font)
+                      ;; GUI frame: show composition in terms of
+                      ;; font glyphs and characters.
                       (progn
                         (insert " using this font:\n  "
                                 (symbol-name (font-get font :type))
@@ -772,12 +774,22 @@ The character information includes:
                         (while (and (<= from to)
                                     (setq glyph (lgstring-glyph gstring from)))
                           (insert (format "  %S\n" glyph))
-                          (setq from (1+ from))))
+                          (setq from (1+ from)))
+                        (insert "from these character(s):\n")
+                        (dotimes (i (lgstring-char-len gstring))
+                          (let ((char (lgstring-char gstring i)))
+                            (insert (format "  %c (#x%x) %s\n"
+                                            char char
+                                            (get-char-code-property
+                                             char 'name))))))
+                    ;; TTY frame: show composition in terms of characters.
                     (insert " by these characters:\n")
                     (while (and (<= from to)
                                 (setq glyph (lgstring-glyph gstring from)))
-                      (insert (format " %c (#x%x)\n"
-                                      (lglyph-char glyph) (lglyph-char glyph)))
+                      (insert (format " %c (#x%x) %s\n"
+                                      (lglyph-char glyph) (lglyph-char glyph)
+                                      (get-char-code-property
+                                       (lglyph-char glyph) 'name)))
                       (setq from (1+ from)))))
               (insert " by the rule:\n\t(")
               (let ((first t))
@@ -919,7 +931,7 @@ condition, the function may return string longer than WIDTH, see
            (t name)))))))
 
 ;;;###autoload
-(defun describe-char-eldoc ()
+(defun describe-char-eldoc (_callback &rest _)
   "Return a description of character at point for use by ElDoc mode.
 
 Return nil if character at point is a printable ASCII
@@ -929,10 +941,17 @@ Otherwise return a description formatted by
 of `eldoc-echo-area-use-multiline-p' variable and width of
 minibuffer window for width limit.
 
-This function is meant to be used as a value of
-`eldoc-documentation-function' variable."
+This function can be used as a value of
+`eldoc-documentation-functions' variable."
   (let ((ch (following-char)))
     (when (and (not (zerop ch)) (or (< ch 32) (> ch 127)))
+      ;; TODO: investigate if the new `eldoc-documentation-functions'
+      ;; API could significantly improve this.  JT@2020-07-07: Indeed,
+      ;; instead of returning a string tailored here for the echo area
+      ;; exclusively, we could call the (now unused) argument
+      ;; _CALLBACK with hints on how to shorten the string if needed,
+      ;; or with multiple usable strings which Eldoc picks according
+      ;; to its space contraints.
       (describe-char-eldoc--format
        ch
        (unless (eq eldoc-echo-area-use-multiline-p t)

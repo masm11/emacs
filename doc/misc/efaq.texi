@@ -1125,7 +1125,7 @@ scanning of @code{#define}d symbols.
 
 @cindex xref
 @item
-New package Xref replaces Etags's front-end and UI.  Xref provides a
+New package Xref replaces Etags's front-end and UI@.  Xref provides a
 generic framework and new commands to find and move to definitions of
 functions, macros, data structures etc., as well as go back to the
 location where you were before moving to a definition.  It supersedes
@@ -1594,6 +1594,10 @@ st-direct       st with direct-color indexing
 xterm-direct2   xterm with direct-color indexing (old)
 xterm-direct    xterm with direct-color indexing
 @end example
+
+If Terminfo database is not available, but 24-bit direct color mode is
+supported, it can still be enabled by defining the environment
+variable @env{COLORTERM} to @samp{truecolor}.
 
 Terminals with @samp{RGB} capability treat pixels #000001 - #000007 as
 indexed colors to maintain backward compatibility with applications
@@ -3473,15 +3477,18 @@ You can browse the resulting @file{*Packages*} buffer to see what is
 available, and then Emacs can automatically download and install the
 packages that you select.  @xref{Packages,,, emacs, The GNU Emacs Manual}.
 
-There are other, non-GNU, Emacs Lisp package servers, including:
-@uref{https://melpa.org, MELPA}; and
-@uref{https://marmalade-repo.org, Marmalade}.  To use additional
-package servers, customize the @code{package-archives} variable.  Be
-aware that installing a package can run arbitrary code, so only add
-sources that you trust.  Also, packages hosted on non-GNU package
-servers may encourage or require you to install and use non-free
-software; for example, MELPA is known to host some packages that do
-this.
+There are other Emacs Lisp package archives.  To use additional
+archives, you can customize the @code{package-archives} variable.
+Those archives have no affiliation with GNU Emacs, and we do not
+monitor how they are maintained.  They may pay close attention to
+correctness and safety of the code, or they may give only cursory
+attention.
+
+Also, packages hosted on these other archives may encourage or require
+you to install and use other nonfree programs.  Unless you can verify
+that a package is free software, and that it functions without
+installing any nonfree software, we recommend for your freedom's sake
+that you stay away from it.
 
 The @uref{https://lists.gnu.org/mailman/listinfo/gnu-emacs-sources,
 GNU Emacs sources mailing list}, which is gatewayed to the

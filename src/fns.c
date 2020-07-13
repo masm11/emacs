@@ -22,6 +22,7 @@ along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>.  */
 
 #include <stdio.h>
 #include <stdlib.h>
+#include <sys/random.h>
 #include <unistd.h>
 #include <filevercmp.h>
 #include <intprops.h>
@@ -38,10 +39,6 @@ along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>.  */
 #include "window.h"
 #include "puresize.h"
 #include "gnutls.h"
-
-#if defined WINDOWSNT && defined HAVE_GNUTLS3
-# define gnutls_rnd w32_gnutls_rnd
-#endif
 
 static void sort_vector_copy (Lisp_Object, ptrdiff_t,
 			      Lisp_Object *restrict, Lisp_Object *restrict);
@@ -1534,11 +1531,21 @@ same_float (Lisp_Object x, Lisp_Object y)
   return !neql;
 }
 
+/* True if X can be compared using `eq'.
+   This predicate is approximative, for maximum speed.  */
+static bool
+eq_comparable_value (Lisp_Object x)
+{
+  return SYMBOLP (x) || FIXNUMP (x);
+}
+
 DEFUN ("member", Fmember, Smember, 2, 2, 0,
        doc: /* Return non-nil if ELT is an element of LIST.  Comparison done with `equal'.
 The value is actually the tail of LIST whose car is ELT.  */)
   (Lisp_Object elt, Lisp_Object list)
 {
+  if (eq_comparable_value (elt))
+    return Fmemq (elt, list);
   Lisp_Object tail = list;
   FOR_EACH_TAIL (tail)
     if (! NILP (Fequal (elt, XCAR (tail))))
@@ -1626,6 +1633,8 @@ The value is actually the first element of ALIST whose car equals KEY.
 Equality is defined by TESTFN if non-nil or by `equal' if nil.  */)
      (Lisp_Object key, Lisp_Object alist, Lisp_Object testfn)
 {
+  if (eq_comparable_value (key) && NILP (testfn))
+    return Fassq (key, alist);
   Lisp_Object tail = alist;
   FOR_EACH_TAIL (tail)
     {
@@ -1676,6 +1685,8 @@ DEFUN ("rassoc", Frassoc, Srassoc, 2, 2, 0,
 The value is actually the first element of ALIST whose cdr equals KEY.  */)
   (Lisp_Object key, Lisp_Object alist)
 {
+  if (eq_comparable_value (key))
+    return Frassq (key, alist);
   Lisp_Object tail = alist;
   FOR_EACH_TAIL (tail)
     {
@@ -2509,26 +2520,36 @@ ARRAY is a vector, string, char-table, or bool-vector.  */)
     }
   else if (STRINGP (array))
     {
-      register unsigned char *p = SDATA (array);
-      int charval;
+      unsigned char *p = SDATA (array);
       CHECK_CHARACTER (item);
-      charval = XFIXNAT (item);
+      int charval = XFIXNAT (item);
       size = SCHARS (array);
-      if (STRING_MULTIBYTE (array))
+      if (size != 0)
 	{
+	  CHECK_IMPURE (array, XSTRING (array));
 	  unsigned char str[MAX_MULTIBYTE_LENGTH];
-	  int len = CHAR_STRING (charval, str);
-	  ptrdiff_t size_byte = SBYTES (array);
-	  ptrdiff_t product;
+	  int len;
+	  if (STRING_MULTIBYTE (array))
+	    len = CHAR_STRING (charval, str);
+	  else
+	    {
+	      str[0] = charval;
+	      len = 1;
+	    }
 
-	  if (INT_MULTIPLY_WRAPV (size, len, &product) || product != size_byte)
-	    error ("Attempt to change byte length of a string");
-	  for (idx = 0; idx < size_byte; idx++)
-	    *p++ = str[idx % len];
+	  ptrdiff_t size_byte = SBYTES (array);
+	  if (len == 1 && size == size_byte)
+	    memset (p, str[0], size);
+	  else
+	    {
+	      ptrdiff_t product;
+	      if (INT_MULTIPLY_WRAPV (size, len, &product)
+		  || product != size_byte)
+		error ("Attempt to change byte length of a string");
+	      for (idx = 0; idx < size_byte; idx++)
+		*p++ = str[idx % len];
+	    }
 	}
-      else
-	for (idx = 0; idx < size; idx++)
-	  p[idx] = charval;
     }
   else if (BOOL_VECTOR_P (array))
     return bool_vector_fill (array, item);
@@ -2543,12 +2564,15 @@ DEFUN ("clear-string", Fclear_string, Sclear_string,
 This makes STRING unibyte and may change its length.  */)
   (Lisp_Object string)
 {
-  ptrdiff_t len;
   CHECK_STRING (string);
-  len = SBYTES (string);
-  memset (SDATA (string), 0, len);
-  STRING_SET_CHARS (string, len);
-  STRING_SET_UNIBYTE (string);
+  ptrdiff_t len = SBYTES (string);
+  if (len != 0 || STRING_MULTIBYTE (string))
+    {
+      CHECK_IMPURE (string, XSTRING (string));
+      memset (SDATA (string), 0, len);
+      STRING_SET_CHARS (string, len);
+      STRING_SET_UNIBYTE (string);
+    }
   return Qnil;
 }
 
@@ -5255,7 +5279,6 @@ extract_data_from_object (Lisp_Object spec,
     }
   else if (EQ (object, Qiv_auto))
     {
-#ifdef HAVE_GNUTLS3
       /* Format: (iv-auto REQUIRED-LENGTH).  */
 
       if (! FIXNATP (start))
@@ -5264,14 +5287,19 @@ extract_data_from_object (Lisp_Object spec,
         {
 	  EMACS_INT start_hold = XFIXNAT (start);
           object = make_uninit_string (start_hold);
-          gnutls_rnd (GNUTLS_RND_NONCE, SSDATA (object), start_hold);
+	  char *lim = SSDATA (object) + start_hold;
+	  for (char *p = SSDATA (object); p < lim; p++)
+	    {
+	      ssize_t gotten = getrandom (p, lim - p, 0);
+	      if (0 <= gotten)
+		p += gotten;
+	      else if (errno != EINTR)
+		report_file_error ("Getting random data", Qnil);
+	    }
 
           *start_byte = 0;
           *end_byte = start_hold;
         }
-#else
-      error ("GnuTLS is not available, so `iv-auto' can't be used");
-#endif
     }
 
   if (!STRINGP (object))

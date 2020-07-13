@@ -184,8 +184,9 @@ This includes password cache, file cache, connection cache, buffers."
   ;; Cancel timers.
   (cancel-function-timers 'tramp-timeout-session)
 
-  ;; Remove buffers.
+  ;; Remove processes and buffers.
   (dolist (name (tramp-list-tramp-buffers))
+    (when (processp (get-buffer-process name)) (delete-process name))
     (when (bufferp (get-buffer name)) (kill-buffer name)))
 
   ;; The end.
@@ -358,9 +359,8 @@ The remote connection identified by SOURCE is flushed by
     (or (setq target (tramp-default-rename-file source))
 	(tramp-user-error
 	 nil
-	 (eval-when-compile
-	   (concat "There is no target specified.  "
-		   "Check `tramp-default-rename-alist' for a proper entry.")))))
+	 (concat "There is no target specified.  "
+		 "Check `tramp-default-rename-alist' for a proper entry."))))
   (when (tramp-equal-remote source target)
     (tramp-user-error nil "Source and target must have different remote."))
 
@@ -565,11 +565,10 @@ buffer in your bug report.
       ;; Remove string quotation.
       (forward-line -1)
       (when (looking-at
-	     (eval-when-compile
-	       (concat "\\(^.*\\)" "\""                       ;; \1 "
-		       "\\((base64-decode-string \\)" "\\\\"  ;; \2 \
-		       "\\(\".*\\)" "\\\\"                    ;; \3 \
-		       "\\(\")\\)" "\"$")))                   ;; \4 "
+	     (concat "\\(^.*\\)" "\""                       ;; \1 "
+		     "\\((base64-decode-string \\)" "\\\\"  ;; \2 \
+		     "\\(\".*\\)" "\\\\"                    ;; \3 \
+		     "\\(\")\\)" "\"$"))                    ;; \4 "
 	(replace-match "\\1\\2\\3\\4")
 	(beginning-of-line)
 	(insert " ;; Variable encoded due to non-printable characters.\n"))

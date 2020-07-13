@@ -1194,7 +1194,7 @@ This function returns the full name of the logged-in user---or the value
 of the environment variable @env{NAME}, if that is set.
 
 If the Emacs process's user-id does not correspond to any known user (and
-provided @code{NAME} is not set), the result is @code{"unknown"}.
+provided @env{NAME} is not set), the result is @code{"unknown"}.
 
 If @var{uid} is non-@code{nil}, then it should be a number (a user-id)
 or a string (a login name).  Then @code{user-full-name} returns the full
@@ -1989,7 +1989,7 @@ The result is @code{nil} if either argument is a NaN.
 This returns the time difference @var{t1} @minus{} @var{t2} between
 two time values, as a Lisp time value.  The result is exact and its clock
 resolution is no worse than the worse of its two arguments' resolutions.
-The result is floating-point only if it is infinite or a NaN.
+The result is floating-point only if it is infinite or a NaN@.
 If you need the difference in units
 of elapsed seconds, you can convert it with @code{time-convert} or
 @code{float-time}.  @xref{Time Conversion}.

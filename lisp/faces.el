@@ -1786,16 +1786,42 @@ with the color they represent as background color."
    (defined-colors frame)))
 
 (defun readable-foreground-color (color)
-  "Return a readable foreground color for background COLOR."
-  (let* ((rgb   (color-values color))
-	 (max   (apply #'max rgb))
-	 (black (car (color-values "black")))
-	 (white (car (color-values "white"))))
-    ;; Select black or white depending on which one is less similar to
-    ;; the brightest component.
-    (if (> (abs (- max black)) (abs (- max white)))
-	"black"
-      "white")))
+  "Return a readable foreground color for background COLOR.
+The returned value is a string representing black or white, depending
+on which one provides better contrast with COLOR."
+  ;; We use #ffffff instead of "white", because the latter is sometimes
+  ;; less than white.  That way, we get the best contrast possible.
+  (if (color-dark-p (mapcar (lambda (c) (/ c 65535.0))
+                            (color-values color)))
+      "#ffffff" "black"))
+
+(defconst color-luminance-dark-limit 0.325
+  "The relative luminance below which a color is considered 'dark'.
+A 'dark' color in this sense provides better contrast with white
+than with black; see `color-dark-p'.
+This value was determined experimentally.")
+
+(defun color-dark-p (rgb)
+  "Whether RGB is more readable against white than black.
+RGB is a 3-element list (R G B), each component in the range [0,1].
+This predicate can be used both for determining a suitable (black or white)
+contrast colour with RGB as background and as foreground."
+  (unless (<= 0 (apply #'min rgb) (apply #'max rgb) 1)
+    (error "RGB components %S not in [0,1]" rgb))
+  ;; Compute the relative luminance after gamma-correcting (assuming sRGB),
+  ;; and compare to a cut-off value determined experimentally.
+  ;; See https://en.wikipedia.org/wiki/Relative_luminance for details.
+  (let* ((sr (nth 0 rgb))
+         (sg (nth 1 rgb))
+         (sb (nth 2 rgb))
+         ;; Gamma-correct the RGB components to linear values.
+         ;; Use the power 2.2 as an approximation to sRGB gamma;
+         ;; it should be good enough for the purpose of this function.
+         (r (expt sr 2.2))
+         (g (expt sg 2.2))
+         (b (expt sb 2.2))
+         (y (+ (* r 0.2126) (* g 0.7152) (* b 0.0722))))
+    (< y color-luminance-dark-limit)))
 
 (declare-function xw-color-defined-p "xfns.c" (color &optional frame))
 
@@ -1823,7 +1849,7 @@ COLOR should be a string naming a color (e.g. \"white\"), or a
 string specifying a color's RGB components (e.g. \"#ff12ec\").
 
 Return a list of three integers, (RED GREEN BLUE), each between 0
-and either 65280 or 65535 (the maximum depends on the system).
+and 65535 inclusive.
 Use `color-name-to-rgb' if you want RGB floating-point values
 normalized to 1.0.
 
@@ -2738,6 +2764,33 @@ Note: Other faces cannot inherit from the cursor face."
      :background "grey"))
   "Basic tool-bar face."
   :version "21.1"
+  :group 'basic-faces)
+
+(defface tab-bar
+  '((((class color) (min-colors 88))
+     :inherit variable-pitch
+     :background "grey85"
+     :foreground "black")
+    (((class mono))
+     :background "grey")
+    (t
+     :inverse-video t))
+  "Tab bar face."
+  :version "27.1"
+  :group 'basic-faces)
+
+(defface tab-line
+  '((((class color) (min-colors 88))
+     :inherit variable-pitch
+     :height 0.9
+     :background "grey85"
+     :foreground "black")
+    (((class mono))
+     :background "grey")
+    (t
+     :inverse-video t))
+  "Tab line face."
+  :version "27.1"
   :group 'basic-faces)
 
 (defface menu

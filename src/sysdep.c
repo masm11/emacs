@@ -27,6 +27,7 @@ along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>.  */
 #endif /* HAVE_PWD_H */
 #include <limits.h>
 #include <stdlib.h>
+#include <sys/random.h>
 #include <unistd.h>
 
 #include <c-ctype.h>
@@ -115,16 +116,6 @@ along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>.  */
 #include "process.h"
 #include "cm.h"
 
-#include "gnutls.h"
-/* MS-Windows loads GnuTLS at run time, if available; we don't want to
-   do that during startup just to call gnutls_rnd.  */
-#if defined HAVE_GNUTLS && !defined WINDOWSNT
-# include <gnutls/crypto.h>
-#else
-# define emacs_gnutls_global_init() Qnil
-# define gnutls_rnd(level, data, len) (-1)
-#endif
-
 #ifdef WINDOWSNT
 # include <direct.h>
 /* In process.h which conflicts with the local copy.  */
@@ -199,6 +190,7 @@ maybe_disable_address_randomization (int argc, char **argv)
 }
 #endif
 
+#ifndef WINDOWSNT
 /* Execute the program in FILE, with argument vector ARGV and environ
    ENVP.  Return an error number if unsuccessful.  This is like execve
    except it reenables ASLR in the executed program if necessary, and
@@ -214,6 +206,8 @@ emacs_exec_file (char const *file, char *const *argv, char *const *envp)
   execve (file, argv, envp);
   return errno;
 }
+
+#endif	/* !WINDOWSNT */
 
 /* If FD is not already open, arrange for it to be open with FLAGS.  */
 static void
@@ -2275,9 +2269,7 @@ init_signals (void)
 typedef unsigned int random_seed;
 static void set_random_seed (random_seed arg) { srandom (arg); }
 #elif defined HAVE_LRAND48
-/* Although srand48 uses a long seed, this is unsigned long to avoid
-   undefined behavior on signed integer overflow in init_random.  */
-typedef unsigned long int random_seed;
+typedef long int random_seed;
 static void set_random_seed (random_seed arg) { srand48 (arg); }
 #else
 typedef unsigned int random_seed;
@@ -2304,23 +2296,14 @@ init_random (void)
   /* First, try seeding the PRNG from the operating system's entropy
      source.  This approach is both fast and secure.  */
 #ifdef WINDOWSNT
+  /* FIXME: Perhaps getrandom can be used here too?  */
   success = w32_init_random (&v, sizeof v) == 0;
 #else
-  int fd = emacs_open ("/dev/urandom", O_RDONLY, 0);
-  if (0 <= fd)
-    {
-      success = emacs_read (fd, &v, sizeof v) == sizeof v;
-      close (fd);
-    }
+  verify (sizeof v <= 256);
+  success = getrandom (&v, sizeof v, 0) == sizeof v;
 #endif
 
-  /* If that didn't work, try using GnuTLS, which is secure, but on
-     some systems, can be somewhat slow.  */
-  if (!success)
-    success = EQ (emacs_gnutls_global_init (), Qt)
-      && gnutls_rnd (GNUTLS_RND_NONCE, &v, sizeof v) == 0;
-
-  /* If _that_ didn't work, just use the current time value and PID.
+  /* If that didn't work, just use the current time value and PID.
      It's at least better than XKCD 221.  */
   if (!success)
     {

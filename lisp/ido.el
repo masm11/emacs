@@ -355,7 +355,7 @@ The following values are possible:
 Setting this variable directly does not take effect;
 use either \\[customize] or the function `ido-mode'."
   :set #'(lambda (_symbol value)
-	   (ido-mode value))
+           (ido-mode (or value 0)))
   :initialize #'custom-initialize-default
   :require 'ido
   :link '(emacs-commentary-link "ido.el")
@@ -499,11 +499,14 @@ This means that \\[ido-complete] must always be followed by \\[ido-exit-minibuff
 even when there is only one unique completion."
   :type 'boolean)
 
-(defcustom ido-cannot-complete-command 'ido-completion-help
+(defcustom ido-cannot-complete-command #'ido-completion-auto-help
   "Command run when `ido-complete' can't complete any more.
 The most useful values are `ido-completion-help', which pops up a
-window with completion alternatives, or `ido-next-match' or
-`ido-prev-match', which cycle the buffer list."
+window with completion alternatives; `ido-completion-auto-help',
+which does the same but respects the value of
+`completion-auto-help'; and `ido-next-match' or `ido-prev-match',
+which cycle the buffer list."
+  :version "28.1"
   :type 'function)
 
 
@@ -1546,7 +1549,7 @@ This function also adds a hook to the minibuffer."
 	 ((> (prefix-numeric-value arg) 0) 'both)
 	 (t nil)))
 
-  (ido-everywhere (if ido-everywhere 1 -1))
+  (ido-everywhere (if (and ido-mode ido-everywhere) 1 -1))
 
   (when ido-mode
     (ido-common-initialization)
@@ -3407,13 +3410,18 @@ instead removed from the current item list."
 
 (defun ido-make-buffer-list-1 (&optional frame visible)
   "Return list of non-ignored buffer names."
-  (delq nil
-	(mapcar
-	 (lambda (x)
-	   (let ((name (buffer-name x)))
-	     (if (not (or (ido-ignore-item-p name ido-ignore-buffers) (member name visible)))
-		 name)))
-	 (buffer-list frame))))
+  (with-temp-buffer
+    ;; Each call to ido-ignore-item-p LET-binds case-fold-search.
+    ;; That is slow if there's no buffer-local binding available,
+    ;; roughly O(number of buffers).  This hack avoids it.
+    (setq-local case-fold-search nil)
+    (delq nil
+	  (mapcar
+	   (lambda (x)
+	     (let ((name (buffer-name x)))
+	       (if (not (or (ido-ignore-item-p name ido-ignore-buffers) (member name visible)))
+		   name)))
+	   (buffer-list frame)))))
 
 (defun ido-make-buffer-list (default)
   "Return the current list of buffers.
@@ -3926,6 +3934,14 @@ If `ido-change-word-sub' cannot be found in WORD, return nil."
       (when (bobp)
 	(next-completion 1)))))
 
+(defun ido-completion-auto-help ()
+  "Call `ido-completion-help' if `completion-auto-help' is non-nil."
+  (interactive)
+  ;; Note: `completion-auto-help' could also be `lazy', but this value
+  ;; is irrelevant to ido, which is fundamentally eager, so it is
+  ;; treated the same as t.
+  (when completion-auto-help
+    (ido-completion-help)))
 
 (defun ido-completion-help ()
   "Show possible completions in the `ido-completion-buffer'."

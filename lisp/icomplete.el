@@ -300,7 +300,10 @@ if that doesn't produce a completion match."
   (interactive)
   (if (and (eq (char-before) ?/)
            (eq (icomplete--category) 'file))
-      (zap-up-to-char -1 ?/)
+      (save-excursion
+        (goto-char (1- (point)))
+        (when (search-backward "/" (point-min) t)
+          (delete-region (1+ (point)) (point-max))))
     (call-interactively 'backward-delete-char)))
 
 (defvar icomplete-fido-mode-map
@@ -330,7 +333,10 @@ if that doesn't produce a completion match."
                 icomplete-hide-common-prefix nil
                 completion-styles '(flex)
                 completion-flex-nospace nil
-                completion-category-defaults nil)))
+                completion-category-defaults nil
+                completion-ignore-case t
+                read-buffer-completion-ignore-case t
+                read-file-name-completion-ignore-case t)))
 
 ;;;###autoload
 (define-minor-mode fido-mode

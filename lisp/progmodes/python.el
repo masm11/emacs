@@ -34,7 +34,7 @@
 ;; Implements Syntax highlighting, Indentation, Movement, Shell
 ;; interaction, Shell completion, Shell virtualenv support, Shell
 ;; package support, Shell syntax highlighting, Pdb tracking, Symbol
-;; completion, Skeletons, FFAP, Code Check, Eldoc, Imenu.
+;; completion, Skeletons, FFAP, Code Check, ElDoc, Imenu.
 
 ;; Syntax highlighting: Fontification of code is provided and supports
 ;; python's triple quoted strings properly.
@@ -216,7 +216,7 @@
 ;; Code check: Check the current file for errors with `python-check'
 ;; using the program defined in `python-check-command'.
 
-;; Eldoc: returns documentation for object at point by using the
+;; ElDoc: returns documentation for object at point by using the
 ;; inferior python subprocess to inspect its documentation.  As you
 ;; might guessed you should run `python-shell-send-buffer' from time
 ;; to time to get better results too.
@@ -261,7 +261,6 @@
 (require 'ansi-color)
 (require 'cl-lib)
 (require 'comint)
-(require 'json)
 (require 'tramp-sh)
 
 ;; Avoid compiler warnings
@@ -634,6 +633,8 @@ builtins.")
     (,(lambda (limit)
         (let ((re (python-rx (group (+ (any word ?. ?_)))
                              (? ?\[ (+ (not (any  ?\]))) ?\]) (* space)
+                             ;; A type, like " : int ".
+                             (? ?: (* space) (+ (any word ?. ?_)) (* space))
                              assignment-operator))
               (res nil))
           (while (and (setq res (re-search-forward re limit t))
@@ -2091,7 +2092,7 @@ executed through tramp connections."
 This variable, when set to a string, makes the environment to be
 modified such that shells are started within the specified
 virtualenv."
-  :type '(choice (const nil) string)
+  :type '(choice (const nil) directory)
   :group 'python)
 
 (defcustom python-shell-setup-codes nil
@@ -2276,6 +2277,18 @@ Do not set this variable directly, instead use
 Do not set this variable directly, instead use
 `python-shell-prompt-set-calculated-regexps'.")
 
+(defalias 'python--parse-json-array
+  (if (fboundp 'json-parse-string)
+      (lambda (string)
+        (json-parse-string string :array-type 'list))
+    (require 'json)
+    (defvar json-array-type)
+    (declare-function json-read-from-string "json" (string))
+    (lambda (string)
+      (let ((json-array-type 'list))
+        (json-read-from-string string))))
+  "Parse the JSON array in STRING into a Lisp list.")
+
 (defun python-shell-prompt-detect ()
   "Detect prompts for the current `python-shell-interpreter'.
 When prompts can be retrieved successfully from the
@@ -2324,11 +2337,11 @@ detection and just returns nil."
               (catch 'prompts
                 (dolist (line (split-string output "\n" t))
                   (let ((res
-                         ;; Check if current line is a valid JSON array
-                         (and (string= (substring line 0 2) "[\"")
+                         ;; Check if current line is a valid JSON array.
+                         (and (string-prefix-p "[\"" line)
                               (ignore-errors
-                                ;; Return prompts as a list, not vector
-                                (append (json-read-from-string line) nil)))))
+                                ;; Return prompts as a list.
+                                (python--parse-json-array line)))))
                     ;; The list must contain 3 strings, where the first
                     ;; is the input prompt, the second is the block
                     ;; prompt and the last one is the output prompt.  The
@@ -4461,7 +4474,7 @@ See `python-check-command' for the default."
                          (format python-check-buffer-name command)))))
 
 
-;;; Eldoc
+;;; ElDoc
 
 (defcustom python-eldoc-setup-code
   "def __PYDOC_get_help(obj):
@@ -4560,7 +4573,7 @@ returns will be used.  If not FORCE-PROCESS is passed what
   :type 'boolean
   :version "25.1")
 
-(defun python-eldoc-function ()
+(defun python-eldoc-function (&rest _ignored)
   "`eldoc-documentation-function' for Python.
 For this to work as best as possible you should call
 `python-shell-send-buffer' from time to time so context in
@@ -4578,7 +4591,7 @@ fetching."
     (with-timeout (python-eldoc-function-timeout
                    (if python-eldoc-function-timeout-permanent
                        (progn
-                         (message "Eldoc echo-area display muted in this buffer, see `python-eldoc-function'")
+                         (message "ElDoc echo-area display muted in this buffer, see `python-eldoc-function'")
                          (setq python-eldoc-get-doc nil))
                      (message "`python-eldoc-function' timed out, see `python-eldoc-function-timeout'")))
       (python-eldoc--get-doc-at-point))))
@@ -5540,14 +5553,16 @@ REPORT-FN is Flymake's callback function."
                                                  (current-column))))
          (^ '(- (1+ (current-indentation))))))
 
-  (if (null eldoc-documentation-function)
-      ;; Emacs<25
-      (set (make-local-variable 'eldoc-documentation-function)
-           #'python-eldoc-function)
-    (if (boundp 'eldoc-documentation-functions)
-        (add-hook 'eldoc-documentation-functions #'python-eldoc-function nil t)
-      (add-function :before-until (local 'eldoc-documentation-function)
-                    #'python-eldoc-function)))
+  (with-no-warnings
+    ;; supress warnings about eldoc-documentation-function being obsolete
+   (if (null eldoc-documentation-function)
+       ;; Emacs<25
+       (set (make-local-variable 'eldoc-documentation-function)
+            #'python-eldoc-function)
+     (if (boundp 'eldoc-documentation-functions)
+         (add-hook 'eldoc-documentation-functions #'python-eldoc-function nil t)
+       (add-function :before-until (local 'eldoc-documentation-function)
+                     #'python-eldoc-function))))
 
   (add-to-list
    'hs-special-modes-alist
