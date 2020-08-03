@@ -169,7 +169,7 @@ build() {
     --libexecdir=/usr/lib
     --localstatedir=/var
     --mandir=/usr/share/man
-    --without-x
+    --with-pgtk
     --with-gameuser=:games
     --with-sound=alsa
     --with-xft
