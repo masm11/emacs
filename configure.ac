@@ -1741,7 +1741,8 @@ AC_CHECK_HEADERS_ONCE(
   sys/sysinfo.h
   coff.h pty.h
   sys/resource.h
-  sys/utsname.h pwd.h utmp.h util.h)
+  sys/utsname.h pwd.h utmp.h util.h
+  sanitizer/lsan_interface.h)
 
 AC_CACHE_CHECK([for ADDR_NO_RANDOMIZE],
   [emacs_cv_personality_addr_no_randomize],
@@ -4585,10 +4586,12 @@ AC_CHECK_HEADERS(valgrind/valgrind.h)
 
 AC_CHECK_MEMBERS([struct unipair.unicode], [], [], [[#include <linux/kd.h>]])
 
-AC_CHECK_FUNCS_ONCE([sbrk])
+AC_CHECK_FUNCS_ONCE([__lsan_ignore_object sbrk])
 
 AC_FUNC_FORK
 
+dnl AC_CHECK_FUNCS_ONCE wouldn’t be right for snprintf, which needs
+dnl the current CFLAGS etc.
 AC_CHECK_FUNCS(snprintf)
 
 dnl Check for glib.  This differs from other library checks in that

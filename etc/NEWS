@@ -156,7 +156,7 @@ value of 'tab-bar-show'.
 It is now defined as a generalized variable that can be used with
 'setf' to modify the value stored in a given class slot.
 
-** New minor mode 'cl-font-lock-built-in-mode' for `lisp-mode'.
+** New minor mode 'cl-font-lock-built-in-mode' for 'lisp-mode'.
 The mode provides refined highlighting of built-in functions, types,
 and variables.
 
@@ -208,12 +208,34 @@ Bookmark locations can refer to VC directory buffers.
 ** Gnus
 
 ---
+*** The value of "all" in the 'large-newsgroup-initial' group parameter changes.
+It was previously nil, which didn't work, because nil is
+indistinguishable from not being present.  The new value for "all" is
+the symbol 'all'.
+
++++
+*** The name of dependent Gnus sessions has changed from "slave" to "child".
+The names of the commands 'gnus-slave', 'gnus-slave-no-server' and
+'gnus-slave-unplugged' have changed to 'gnus-child',
+'gnus-child-no-server' and 'gnus-child-unplugged' respectively.
+
++++
+*** The 'W Q' summary mode command now takes a numerical prefix to
+allow adjusting the fill width.
+
+---
 *** Change to default value of 'message-draft-headers' user option.
 The 'Date' symbol has been removed from the default value, meaning that
 draft or delayed messages will get a date reflecting when the message
 was sent.  To restore the original behavior of dating a message
 from when it is first saved or delayed, add the symbol 'Date' back to
 this user option.
+
++++
+*** New variable 'mm-inline-font-lock'.
+This variable is supposed to be bound by callers to determine whether
+inline MIME parts (that support it) are supposed to be font-locked or
+not.
 
 ** Help
 
@@ -244,6 +266,10 @@ To revert to the previous behaviour,
 unconditionally aborts the current edebug instrumentation with the
 supplied error message.
 
+*** Edebug specification lists can use the new keyword ':unique',
+which appends a unique suffix to the Edebug name of the current
+definition.
+
 +++
 ** ElDoc
 
@@ -251,8 +277,8 @@ supplied error message.
 This hook is intended to be used for registering doc string functions.
 These functions don't need to produce the doc string right away, they
 may arrange for it to be produced asynchronously.  The results of all
-doc string functions are accessible to the user through the existing
-variable 'eldoc-documentation-strategy'.
+doc string functions are accessible to the user through the user
+option 'eldoc-documentation-strategy'.
 
 *** New user option 'eldoc-documentation-strategy'.
 The built-in choices available for this user option let users compose
@@ -263,7 +289,7 @@ obsolete.
 
 *** 'eldoc-echo-area-use-multiline-p' is now handled by ElDoc.
 The user option 'eldoc-echo-area-use-multiline-p' is now handled
-by the Eldoc library itself.  Functions in
+by the ElDoc library itself.  Functions in
 'eldoc-documentation-functions' don't need to worry about consulting
 it when producing a doc string.
 
@@ -297,6 +323,16 @@ like cell phones, tablets or cameras.
 This command marks a remote directory to contain only encrypted files.
 See the "(tramp) Keeping files encrypted" node of the Tramp manual for
 details.  This feature is experimental.
+
++++
+*** Support of direct asynchronous process invocation.
+When Tramp connection property "direct-async-process" is set to
+non-nil for a given connection, 'make-process' and 'start-file-process'
+calls are performed directly as in "ssh ... <command>".  This avoids
+initialization performance penalties.  See the "(tramp) Improving
+performance of asynchronous remote processes" node of the Tramp manual
+for details, and also for a discussion or restrictions.  This feature
+is experimental.
 
 ** Tempo
 
@@ -470,7 +506,31 @@ This is still the case by default, but if you customize
 'browse-url-mailto-function' or 'browse-url-handlers' to call some
 other function, it will now be called instead of the default.
 
++++
+*** New user option 'shr-max-width'.
+If this user option is non-nil, and 'shr-width' is nil, then SHR will
+use the value of 'shr-max-width' to limit the width of the rendered
+HTML.  The default is 120 characters, so even if you have very wide
+frames, HTML text will be rendered more narrowly, which usually leads
+to a more readable text.  Set this user option to nil to get the
+previous behavior of rendering as wide as the 'window-width' allows.
+If 'shr-width' is non-nil, it overrides this variable.
+
+** Images
+
+---
+*** Animated images stop automatically under high CPU pressure sooner.
+Previously, an animated image would stop animating if any single image
+took more than two seconds to display.  The new algorithm maintains a
+decaying average of delays, and if this number gets too high, the
+animation is stopped.
+
 ** EWW
+
++++
+*** 'eww-download-directory' will now use the XDG location, if defined.
+However, if "~/Downloads/" already exists, that will continue to be
+used.
 
 ---
 *** The command 'eww-follow-link' now supports custom mailto handlers.
@@ -482,21 +542,31 @@ information, see the related entry about 'shr-browse-url' above.
 
 *** New user option 'project-vc-merge-submodules'.
 
-*** Previously used project directories are now suggested by
-all commands that prompt for a project directory.
+*** Project commands now have their own history.
+Previously used project directories are now suggested by all commands
+that prompt for a project directory.
+
++++
+*** New prefix keymap 'project-prefix-map'.
+Key sequences that invoke project-related commands start with the
+prefix 'C-x p'.  Type "C-x p C-h" to show the full list.
 
 +++
 *** New commands 'project-dired', 'project-vc-dir', 'project-shell',
 'project-eshell'.  These commands run Dired/VC-Dir and Shell/Eshell in
 a project's root directory, respectively.
 
-*** New command 'project-compile', which runs compilation.
++++
+*** New command 'project-compile'.
+This command runs compilation in the current project's root
+directory.
 
 +++
 *** New command 'project-switch-project'.
 This command lets you "switch" to another project and run a project
 command chosen from a dispatch menu.
 
++++
 *** New user option 'project-list-file'.
 
 ** json.el
@@ -542,13 +612,14 @@ truncation, amongst other things.
 'bug-reference-prog-mode' have been activated, their respective hook
 has been run and still 'bug-reference-bug-regexp' and
 'bug-reference-url-format' aren't both set, it tries to guess
-appropriate values for those two variables.  There are two guessing
+appropriate values for those two variables.  There are three guessing
 mechanisms so far: based on version control information of the current
-buffer's file, and based on newsgroup/mail-folder name and several
-news and mail message headers in Gnus buffers.  Both mechanisms are
-extensible with custom rules, see the variables
-'bug-reference-setup-from-vc-alist' and
-'bug-reference-setup-from-mail-alist'.
+buffer's file, based on newsgroup/mail-folder name and several news
+and mail message headers in Gnus buffers, and based on IRC channel and
+network in rcirc and ERC buffers.  All mechanisms are extensible with
+custom rules, see the variables 'bug-reference-setup-from-vc-alist',
+'bug-reference-setup-from-mail-alist', and
+'bug-reference-setup-from-irc-alist'.
 
 
 * New Modes and Packages in Emacs 28.1
@@ -591,6 +662,11 @@ shared or constants.
 Formerly it made an exception for integer components of SOA records,
 because SOA serial numbers can exceed fixnum ranges on 32-bit platforms.
 Emacs now supports bignums so this old glitch is no longer needed.
+
+---
+** The new function 'dns-query-asynchronous' has been added.
+It takes the same parameters as 'dns-query', but adds a callback
+parameter.
 
 ** The Lisp variables 'previous-system-messages-locale' and
 'previous-system-time-locale' have been removed, as they were created
@@ -670,6 +746,12 @@ for encoding and decoding without having to bind
 'coding-system-for-{read,write}' or call 'set-process-coding-system'.
 
 +++
+** 'open-network-stream' can now take a ':capability-command' that's a function.
+The function is called with the greeting from the server as its only
+parameter, and allows sending different TLS capability commands to the
+server based on that greeting.
+
++++
 ** 'open-gnutls-stream' now also accepts a ':coding' argument.
 
 +++
@@ -682,7 +764,7 @@ process is interrupted by a signal.
 In order for the two functions to behave more consistently,
 'format-spec' now pads and truncates based on string width rather than
 length, and also supports format specifications that include a
-truncating precision field, such as '%.2a'.
+truncating precision field, such as "%.2a".
 
 ---
 ** New function 'color-values-from-color-spec'.

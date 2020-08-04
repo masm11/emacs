@@ -32,6 +32,7 @@
 (require 'thingatpt)
 (require 'url)
 (require 'url-queue)
+(require 'xdg)
 (eval-when-compile (require 'subr-x))
 
 (defgroup eww nil
@@ -55,11 +56,24 @@
   :group 'eww
   :type 'string)
 
-(defcustom eww-download-directory "~/Downloads/"
-  "Directory where files will downloaded."
-  :version "24.4"
+(defun erc--download-directory ()
+  "Return the name of the download directory.
+If ~/Downloads/ exists, that will be used, and if not, the
+DOWNLOAD XDG user directory will be returned.  If that's
+undefined, ~/Downloads/ is returned anyway."
+  (or (and (file-exists-p "~/Downloads/")
+           "~/Downloads/")
+      (when-let ((dir (xdg-user-dir "DOWNLOAD")))
+        (file-name-as-directory dir))
+      "~/Downloads/"))
+
+(defcustom eww-download-directory 'erc--download-directory
+  "Directory where files will downloaded.
+This should either be a directory name or a function (called with
+no parameters) that returns a directory name."
+  :version "28.1"
   :group 'eww
-  :type 'directory)
+  :type '(choice directory function))
 
 ;;;###autoload
 (defcustom eww-suggest-uris
@@ -263,13 +277,17 @@ This list can be customized via `eww-suggest-uris'."
     (nreverse uris)))
 
 ;;;###autoload
-(defun eww (url &optional arg)
+(defun eww (url &optional arg buffer)
   "Fetch URL and render the page.
 If the input doesn't look like an URL or a domain name, the
 word(s) will be searched for via `eww-search-prefix'.
 
 If called with a prefix ARG, use a new buffer instead of reusing
-the default EWW buffer."
+the default EWW buffer.
+
+If BUFFER, the data to be rendered is in that buffer.  In that
+case, this function doesn't actually fetch URL.  BUFFER will be
+killed after rendering."
   (interactive
    (let* ((uris (eww-suggested-uris))
 	  (prompt (concat "Enter URL or keywords"
@@ -307,8 +325,12 @@ the default EWW buffer."
     (insert (format "Loading %s..." url))
     (goto-char (point-min)))
   (let ((url-mime-accept-string eww-accept-content-types))
-    (url-retrieve url #'eww-render
-                  (list url nil (current-buffer)))))
+    (if buffer
+        (let ((eww-buffer (current-buffer)))
+          (with-current-buffer buffer
+            (eww-render nil url nil eww-buffer)))
+      (url-retrieve url #'eww-render
+                    (list url nil (current-buffer))))))
 
 (function-put 'eww 'browse-url-browser-kind 'internal)
 
@@ -361,7 +383,19 @@ the default EWW buffer."
   (eww (concat "file://"
 	       (and (memq system-type '(windows-nt ms-dos))
 		    "/")
-	       (expand-file-name file))))
+	       (expand-file-name file))
+       nil
+       ;; The file name may be a non-local Tramp file.  The URL
+       ;; library doesn't understand these file names, so use the
+       ;; normal Emacs machinery to load the file.
+       (with-current-buffer (generate-new-buffer " *eww file*")
+         (set-buffer-multibyte nil)
+         (insert "Content-type: " (or (mailcap-extension-to-mime
+			               (url-file-extension file))
+                                      "application/octet-stream")
+                 "\n\n")
+         (insert-file-contents file)
+         (current-buffer))))
 
 ;;;###autoload
 (defun eww-search-words ()
@@ -1260,7 +1294,7 @@ See URL `https://developer.mozilla.org/en-US/docs/Web/HTML/Element/Input'.")
 
 (defun eww-tag-textarea (dom)
   (let ((start (point))
-	(value (or (dom-attr dom 'value) ""))
+        (value (or (dom-text dom) ""))
 	(lines (string-to-number (or (dom-attr dom 'rows) "10")))
 	(width (string-to-number (or (dom-attr dom 'cols) "10")))
 	end)
@@ -1612,20 +1646,23 @@ Differences in #targets are ignored."
   "Download URL to `eww-download-directory'.
 Use link at point if there is one, else the current page's URL."
   (interactive)
-  (access-file eww-download-directory "Download failed")
-  (let ((url (or (get-text-property (point) 'shr-url)
-                 (eww-current-url))))
-    (if (not url)
-        (message "No URL under point")
-      (url-retrieve url #'eww-download-callback (list url)))))
+  (let ((dir (if (stringp eww-download-directory)
+                 eww-download-directory
+               (funcall eww-download-directory))))
+    (access-file dir "Download failed")
+    (let ((url (or (get-text-property (point) 'shr-url)
+                   (eww-current-url))))
+      (if (not url)
+          (message "No URL under point")
+        (url-retrieve url #'eww-download-callback (list url dir))))))
 
-(defun eww-download-callback (status url)
+(defun eww-download-callback (status url dir)
   (unless (plist-get status :error)
     (let* ((obj (url-generic-parse-url url))
            (path (directory-file-name (car (url-path-and-query obj))))
            (file (eww-make-unique-file-name
                   (eww-decode-url-file-name (file-name-nondirectory path))
-                  eww-download-directory)))
+                  dir)))
       (goto-char (point-min))
       (re-search-forward "\r?\n\r?\n")
       (let ((coding-system-for-write 'no-conversion))
@@ -1744,25 +1781,27 @@ If CHARSET is nil then use UTF-8."
     (insert ";; Auto-generated file; don't edit -*- mode: lisp-data -*-\n")
     (pp eww-bookmarks (current-buffer))))
 
-(defun eww-read-bookmarks ()
+(defun eww-read-bookmarks (&optional error-out)
+  "Read bookmarks from `eww-bookmarks'.
+If ERROR-OUT, signal user-error if there are no bookmarks."
   (let ((file (expand-file-name "eww-bookmarks" eww-bookmarks-directory)))
     (setq eww-bookmarks
 	  (unless (zerop (or (file-attribute-size (file-attributes file)) 0))
 	    (with-temp-buffer
 	      (insert-file-contents file)
-	      (read (current-buffer)))))))
+	      (read (current-buffer)))))
+    (when (and error-out (not eww-bookmarks))
+      (user-error "No bookmarks are defined"))))
 
 ;;;###autoload
 (defun eww-list-bookmarks ()
   "Display the bookmarks."
   (interactive)
+  (eww-read-bookmarks t)
   (pop-to-buffer "*eww bookmarks*")
   (eww-bookmark-prepare))
 
 (defun eww-bookmark-prepare ()
-  (eww-read-bookmarks)
-  (unless eww-bookmarks
-    (user-error "No bookmarks are defined"))
   (set-buffer (get-buffer-create "*eww bookmarks*"))
   (eww-bookmark-mode)
   (let* ((width (/ (window-width) 2))
@@ -1830,6 +1869,7 @@ If CHARSET is nil then use UTF-8."
 	bookmark)
     (unless (get-buffer "*eww bookmarks*")
       (setq first t)
+      (eww-read-bookmarks t)
       (eww-bookmark-prepare))
     (with-current-buffer (get-buffer "*eww bookmarks*")
       (when (and (not first)
@@ -1848,6 +1888,7 @@ If CHARSET is nil then use UTF-8."
 	bookmark)
     (unless (get-buffer "*eww bookmarks*")
       (setq first t)
+      (eww-read-bookmarks t)
       (eww-bookmark-prepare))
     (with-current-buffer (get-buffer "*eww bookmarks*")
       (if first

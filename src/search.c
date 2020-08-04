@@ -613,7 +613,10 @@ newline_cache_on_off (struct buffer *buf)
 	{
 	  /* It should be on.  */
 	  if (base_buf->newline_cache == 0)
-	    base_buf->newline_cache = new_region_cache ();
+            {
+              base_buf->newline_cache = new_region_cache ();
+              __lsan_ignore_object (base_buf->newline_cache);
+            }
 	}
       return base_buf->newline_cache;
     }

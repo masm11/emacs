@@ -1784,6 +1784,7 @@ make_blv (struct Lisp_Symbol *sym, bool forwarded,
   set_blv_defcell (blv, tem);
   set_blv_valcell (blv, tem);
   set_blv_found (blv, false);
+  __lsan_ignore_object (blv);
   return blv;
 }
 

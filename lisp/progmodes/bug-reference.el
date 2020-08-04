@@ -230,7 +230,7 @@ and apply it if applicable."
                 (throw 'found t)))))))))
 
 (defvar bug-reference-setup-from-mail-alist
-  `((,(regexp-opt '("emacs" "auctex" "gnus") 'words)
+  `((,(regexp-opt '("emacs" "auctex" "gnus" "tramp" "orgmode") 'words)
      ,(regexp-opt '("@debbugs.gnu.org" "-devel@gnu.org"
                     ;; List-Id of Gnus devel mailing list.
                     "ding.gnus.org"))
@@ -343,6 +343,84 @@ and set it if applicable."
                       (push val header-values))))))
             (bug-reference--maybe-setup-from-mail nil header-values)))))))
 
+(defvar bug-reference-setup-from-irc-alist
+  `((,(concat "#" (regexp-opt '("emacs" "gnus" "org-mode" "rcirc"
+                                "erc") 'words))
+     "freenode"
+     "\\([Bb]ug ?#?\\)\\([0-9]+\\(?:#[0-9]+\\)?\\)"
+     "https://debbugs.gnu.org/%s"))
+  "An alist for setting up `bug-reference-mode' in IRC modes.
+
+This takes action if `bug-reference-mode' is enabled in IRC
+channels using one of Emacs' IRC clients (rcirc and ERC).
+Currently, rcirc and ERC are supported.
+
+Each element has the form
+
+  (CHANNEL-REGEXP NETWORK-REGEXP BUG-REGEXP URL-FORMAT)
+
+CHANNEL-REGEXP is a regexp matched against the current IRC
+channel name (e.g. #emacs).  NETWORK-REGEXP is matched against
+the IRC network name (e.g. freenode).  Both entries are optional.
+If all given entries match, BUG-REGEXP is set as
+`bug-reference-bug-regexp' and URL-FORMAT is set as
+`bug-reference-url-format'.")
+
+(defun bug-reference--maybe-setup-from-irc (channel network)
+  "Set up according to IRC CHANNEL or NETWORK.
+CHANNEL is an IRC channel name (or generally a target, i.e., it
+could also be a user name) and NETWORK is that channel's network
+name.
+
+If any `bug-reference-setup-from-irc-alist' entry's
+CHANNEL-REGEXP and NETWORK-REGEXP match CHANNEL and NETWORK, the
+corresponding BUG-REGEXP and URL-FORMAT are set."
+  (catch 'setup-done
+    (dolist (config bug-reference-setup-from-irc-alist)
+      (let ((channel-rx (car config))
+            (network-rx (nth 1 config)))
+        (when (and
+               ;; One of both has to be given.
+               (or channel-rx network-rx)
+               ;; The args have to be set.
+               channel network)
+          (when (and
+                 (or (null channel-rx)
+                     (string-match-p channel-rx channel))
+                 (or (null network-rx)
+                     (string-match-p network-rx network)))
+            (setq-local bug-reference-bug-regexp (nth 2 config))
+            (setq-local bug-reference-url-format (nth 3 config))
+            (throw 'setup-done t)))))))
+
+(defvar rcirc-target)
+(defvar rcirc-server-buffer)
+(defvar rcirc-server)
+
+(defun bug-reference-try-setup-from-rcirc ()
+  "Try setting up `bug-reference-mode' based on rcirc channel and server.
+Test each configuration in `bug-reference-setup-from-irc-alist'
+and set it if applicable."
+  (when (derived-mode-p 'rcirc-mode)
+    (bug-reference--maybe-setup-from-irc
+     rcirc-target
+     (and rcirc-server-buffer
+          (buffer-live-p rcirc-server-buffer)
+          (with-current-buffer rcirc-server-buffer
+            rcirc-server)))))
+
+(declare-function erc-format-target "erc")
+(declare-function erc-network-name "erc-networks")
+
+(defun bug-reference-try-setup-from-erc ()
+  "Try setting up `bug-reference-mode' based on ERC channel and server.
+Test each configuration in `bug-reference-setup-from-irc-alist'
+and set it if applicable."
+  (when (derived-mode-p 'erc-mode)
+    (bug-reference--maybe-setup-from-irc
+     (erc-format-target)
+     (erc-network-name))))
+
 (defun bug-reference--run-auto-setup ()
   (when (or bug-reference-mode
             bug-reference-prog-mode)
@@ -354,7 +432,9 @@ and set it if applicable."
           "Error during bug-reference auto-setup: %S"
         (catch 'setup
           (dolist (f (list #'bug-reference-try-setup-from-vc
-                           #'bug-reference-try-setup-from-gnus))
+                           #'bug-reference-try-setup-from-gnus
+                           #'bug-reference-try-setup-from-rcirc
+                           #'bug-reference-try-setup-from-erc))
             (when (funcall f)
               (throw 'setup t))))))))
 

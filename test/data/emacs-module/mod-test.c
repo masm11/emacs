@@ -201,6 +201,47 @@ Fmod_test_globref_free (emacs_env *env, ptrdiff_t nargs, emacs_value args[],
   return env->intern (env, "ok");
 }
 
+/* Treat a local reference as global and free it.  Module assertions
+   should detect this case even if a global reference representing the
+   same object also exists.  */
+
+static emacs_value
+Fmod_test_globref_invalid_free (emacs_env *env, ptrdiff_t nargs,
+                                emacs_value *args, void *data)
+{
+  emacs_value local = env->make_integer (env, 9876);
+  env->make_global_ref (env, local);
+  env->free_global_ref (env, local);  /* Not allowed. */
+  return env->intern (env, "nil");
+}
+
+/* Allocate and free global references in a different order.  */
+
+static emacs_value
+Fmod_test_globref_reordered (emacs_env *env, ptrdiff_t nargs,
+                                emacs_value *args, void *data)
+{
+  emacs_value booleans[2] = {
+    env->intern (env, "nil"),
+    env->intern (env, "t"),
+  };
+  emacs_value local = env->intern (env, "foo");
+  emacs_value globals[4] = {
+    env->make_global_ref (env, local),
+    env->make_global_ref (env, local),
+    env->make_global_ref (env, env->intern (env, "foo")),
+    env->make_global_ref (env, env->intern (env, "bar")),
+  };
+  emacs_value elements[4];
+  for (int i = 0; i < 4; ++i)
+    elements[i] = booleans[env->eq (env, globals[i], local)];
+  emacs_value ret = env->funcall (env, env->intern (env, "list"), 4, elements);
+  env->free_global_ref (env, globals[2]);
+  env->free_global_ref (env, globals[1]);
+  env->free_global_ref (env, globals[3]);
+  env->free_global_ref (env, globals[0]);
+  return ret;
+}
 
 
 /* Return a copy of the argument string where every 'a' is replaced
@@ -221,7 +262,9 @@ Fmod_test_string_a_to_b (emacs_env *env, ptrdiff_t nargs, emacs_value args[],
     if (buf[i] == 'a')
       buf[i] = 'b';
 
-  return env->make_string (env, buf, size - 1);
+  emacs_value ret = env->make_string (env, buf, size - 1);
+  free (buf);
+  return ret;
 }
 
 
@@ -304,6 +347,22 @@ Fmod_test_invalid_load (emacs_env *env, ptrdiff_t nargs, emacs_value *args,
                         void *data)
 {
   return invalid_stored_value;
+}
+
+/* The next function works in conjunction with the two previous ones.
+   It stows away a copy of the object created by
+   `Fmod_test_invalid_store' in a global reference.  Module assertions
+   should still detect the invalid load of the local reference.  */
+
+static emacs_value global_copy_of_invalid_stored_value;
+
+static emacs_value
+Fmod_test_invalid_store_copy (emacs_env *env, ptrdiff_t nargs,
+                              emacs_value *args, void *data)
+{
+  emacs_value local = Fmod_test_invalid_store (env, 0, NULL, NULL);
+  return global_copy_of_invalid_stored_value
+         = env->make_global_ref (env, local);
 }
 
 /* An invalid finalizer: Finalizers are run during garbage collection,
@@ -678,12 +737,18 @@ emacs_module_init (struct emacs_runtime *ert)
 	 1, 1, NULL, NULL);
   DEFUN ("mod-test-globref-make", Fmod_test_globref_make, 0, 0, NULL, NULL);
   DEFUN ("mod-test-globref-free", Fmod_test_globref_free, 4, 4, NULL, NULL);
+  DEFUN ("mod-test-globref-invalid-free", Fmod_test_globref_invalid_free, 0, 0,
+         NULL, NULL);
+  DEFUN ("mod-test-globref-reordered", Fmod_test_globref_reordered, 0, 0, NULL,
+         NULL);
   DEFUN ("mod-test-string-a-to-b", Fmod_test_string_a_to_b, 1, 1, NULL, NULL);
   DEFUN ("mod-test-userptr-make", Fmod_test_userptr_make, 1, 1, NULL, NULL);
   DEFUN ("mod-test-userptr-get", Fmod_test_userptr_get, 1, 1, NULL, NULL);
   DEFUN ("mod-test-vector-fill", Fmod_test_vector_fill, 2, 2, NULL, NULL);
   DEFUN ("mod-test-vector-eq", Fmod_test_vector_eq, 2, 2, NULL, NULL);
   DEFUN ("mod-test-invalid-store", Fmod_test_invalid_store, 0, 0, NULL, NULL);
+  DEFUN ("mod-test-invalid-store-copy", Fmod_test_invalid_store_copy, 0, 0,
+         NULL, NULL);
   DEFUN ("mod-test-invalid-load", Fmod_test_invalid_load, 0, 0, NULL, NULL);
   DEFUN ("mod-test-invalid-finalizer", Fmod_test_invalid_finalizer, 0, 0,
          NULL, NULL);

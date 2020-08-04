@@ -1129,8 +1129,8 @@ The following commands are available:
   (gnus-update-group-mark-positions)
   (when gnus-use-undo
     (gnus-undo-mode 1))
-  (when gnus-slave
-    (gnus-slave-mode)))
+  (when gnus-child
+    (gnus-child-mode)))
 
 (defun gnus-update-group-mark-positions ()
   (save-excursion
@@ -1768,7 +1768,7 @@ already.  If INFO-UNCHANGED is non-nil, dribble buffer is not updated."
   (get-text-property (point-at-bol) 'gnus-unread))
 
 (defun gnus-group-new-mail (group)
-  (if (nnmail-new-mail-p (gnus-group-real-name group))
+  (if (nnmail-new-mail-p group)
       gnus-new-mail-mark
     ?\s))
 
@@ -3600,7 +3600,7 @@ or nil if no action could be taken."
 	 (marks (gnus-info-marks (nth 1 entry)))
 	 (unread (gnus-sequence-of-unread-articles group)))
     ;; Remove entries for this group.
-    (nnmail-purge-split-history (gnus-group-real-name group))
+    (nnmail-purge-split-history group)
     ;; Do the updating only if the newsgroup isn't killed.
     (if (not (numberp (car entry)))
 	(gnus-message 1 "Can't catch up %s; non-active group" group)
@@ -4024,9 +4024,9 @@ otherwise all levels below ARG will be scanned too."
     (gnus-run-hooks 'gnus-get-top-new-news-hook)
     (gnus-run-hooks 'gnus-get-new-news-hook)
 
-    ;; Read any slave files.
-    (unless gnus-slave
-      (gnus-master-read-slave-newsrc))
+    ;; Read any child files.
+    (unless gnus-child
+      (gnus-parent-read-child-newsrc))
 
     (gnus-get-unread-articles (gnus-group-default-level arg t)
 			      nil one-level)

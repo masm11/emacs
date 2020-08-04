@@ -5,7 +5,7 @@
 ;; Author: Noah Friedman <friedman@splode.com>
 ;; Keywords: extensions
 ;; Created: 1995-10-06
-;; Version: 1.5.0
+;; Version: 1.8.0
 ;; Package-Requires: ((emacs "26.3"))
 
 ;; This is a GNU ELPA :core package.  Avoid functionality that is not
@@ -92,7 +92,7 @@ echo area must be resized to fit.
 
 If value is a number (integer or floating point), it has the
 semantics of `max-mini-window-height', constraining the resizing
-for Eldoc purposes only.
+for ElDoc purposes only.
 
 Any resizing respects `max-mini-window-height'.
 
@@ -112,9 +112,9 @@ single line of display in the echo area."
  line" truncate-sym-name-if-fit)))
 
 (defcustom eldoc-prefer-doc-buffer nil
-  "Prefer Eldoc's documentation buffer if it is showing in some frame.
+  "Prefer ElDoc's documentation buffer if it is showing in some frame.
 If this variable's value is t and a piece of documentation needs
-to be truncated to fit in the echo area, do so if Eldoc's
+to be truncated to fit in the echo area, do so if ElDoc's
 documentation buffer is not already showing, since the buffer
 always holds the full documentation."
   :type 'boolean)
@@ -229,11 +229,15 @@ expression point is on." :lighter eldoc-minor-mode-string
 (defun eldoc--eval-expression-setup ()
   ;; Setup `eldoc', similar to `emacs-lisp-mode'.  FIXME: Call
   ;; `emacs-lisp-mode' itself?
-  (add-hook 'eldoc-documentation-functions
-            #'elisp-eldoc-var-docstring nil t)
-  (add-hook 'eldoc-documentation-functions
-            #'elisp-eldoc-funcall nil t)
-  (setq eldoc-documentation-strategy 'eldoc-documentation-default)
+  (cond ((<= emacs-major-version 27)
+         (declare-function elisp-eldoc-documentation-function "elisp-mode")
+         (add-function :before-until (local 'eldoc-documentation-function)
+                       #'elisp-eldoc-documentation-function))
+        (t (add-hook 'eldoc-documentation-functions
+                     #'elisp-eldoc-var-docstring nil t)
+           (add-hook 'eldoc-documentation-functions
+                     #'elisp-eldoc-funcall nil t)
+           (setq eldoc-documentation-strategy 'eldoc-documentation-default)))
   (eldoc-mode +1))
 
 ;;;###autoload
@@ -340,16 +344,38 @@ Also store it in `eldoc-last-message' and return that value."
          ;; for us, but do note that the last-message will be gone.
          (setq eldoc-last-message nil))))
 
-;; Decide whether now is a good time to display a message.
+(defvar-local eldoc--last-request-state nil
+  "Tuple containing information about last ElDoc request.")
+(defun eldoc--request-state ()
+  "Compute information to store in `eldoc--last-request-state'."
+  (list (current-buffer) (buffer-modified-tick) (point)))
+
 (defun eldoc-display-message-p ()
-  "Return non-nil when it is appropriate to display an ElDoc message."
-  (and (eldoc-display-message-no-interference-p)
-       ;; If this-command is non-nil while running via an idle
-       ;; timer, we're still in the middle of executing a command,
-       ;; e.g. a query-replace where it would be annoying to
-       ;; overwrite the echo area.
-       (not this-command)
-       (eldoc--message-command-p last-command)))
+  (eldoc--request-docs-p (eldoc--request-state)))
+(make-obsolete 'eldoc-display-message-p
+               "Use `eldoc-documentation-functions' instead."
+               "eldoc-1.6.0")
+
+(defun eldoc--request-docs-p (request-state)
+  "Return non-nil when it is appropriate to request docs.
+REQUEST-STATE is a candidate for `eldoc--last-request-state'"
+  (and
+   ;; FIXME: The original idea behind this function is to protect the
+   ;; Echo area from ElDoc interference, but since that is only one of
+   ;; the possible outlets of ElDoc, this must soon be reworked.
+   (eldoc-display-message-no-interference-p)
+   (not (and eldoc--doc-buffer
+             (get-buffer-window eldoc--doc-buffer)
+             (equal request-state
+                    (with-current-buffer
+                        eldoc--doc-buffer
+                      eldoc--last-request-state))))
+   ;; If this-command is non-nil while running via an idle
+   ;; timer, we're still in the middle of executing a command,
+   ;; e.g. a query-replace where it would be annoying to
+   ;; overwrite the echo area.
+   (not this-command)
+   (eldoc--message-command-p last-command)))
 
 
 ;; Check various conditions about the current environment that might make
@@ -400,7 +426,8 @@ so that the global value (i.e. the default value of the hook) is
 taken into account if the major mode specific function does not
 return any documentation.")
 
-(defvar eldoc--doc-buffer nil "Buffer holding latest eldoc-produced docs.")
+(defvar eldoc--doc-buffer nil "Buffer displaying latest ElDoc-produced docs.")
+
 (defun eldoc-doc-buffer (&optional interactive)
   "Get latest *eldoc* help buffer.  Interactively, display it."
   (interactive (list t))
@@ -409,6 +436,7 @@ return any documentation.")
           eldoc--doc-buffer
           (setq eldoc--doc-buffer (get-buffer-create "*eldoc*")))
     (when interactive (display-buffer eldoc--doc-buffer))))
+
 
 (defun eldoc--handle-docs (docs)
   "Display multiple DOCS in echo area.
@@ -429,9 +457,12 @@ Honor most of `eldoc-echo-area-use-multiline-p'."
                       (integer val)
                       (t 1)))
          (things-reported-on)
-         single-sym-name)
+         (request eldoc--last-request-state)
+         single-doc single-doc-sym)
       ;; Then, compose the contents of the `*eldoc*' buffer.
       (with-current-buffer (eldoc-doc-buffer)
+        ;; Set doc-buffer's `eldoc--last-request-state', too
+        (setq eldoc--last-request-state request)
         (let ((inhibit-read-only t))
           (erase-buffer) (setq buffer-read-only t)
           (local-set-key "q" 'quit-window)
@@ -454,20 +485,24 @@ Honor most of `eldoc-echo-area-use-multiline-p'."
                                  (mapconcat (lambda (s) (format "%s" s))
                                             things-reported-on
                                             ", ")))))
-      ;; Finally, output to the echo area.  We handle the
-      ;; `truncate-sym-name-if-fit' special case first, by selecting a
-      ;; top-section of the `*eldoc' buffer.  I'm pretty sure nicer
+      ;; Finally, output to the echo area.  I'm pretty sure nicer
       ;; strategies can be used here, probably by splitting this
       ;; function into some `eldoc-display-functions' special hook.
       (let ((echo-area-message
              (cond
-              ((and
+              (;; We handle the `truncate-sym-name-if-fit' special
+               ;; case first, by checking if for a lot of special
+               ;; conditions.
+               (and
                 (eq 'truncate-sym-name-if-fit eldoc-echo-area-use-multiline-p)
                 (null (cdr docs))
-                (setq single-sym-name
+                (setq single-doc (caar docs))
+                (setq single-doc-sym
                       (format "%s" (plist-get (cdar docs) :thing)))
-                (> (+ (length (caar docs)) (length single-sym-name) 2) width))
-               (caar docs))
+                (< (length single-doc) width)
+                (not (string-match "\n" single-doc))
+                (> (+ (length single-doc) (length single-doc-sym) 2) width))
+               single-doc)
               ((> available 1)
                (with-current-buffer (eldoc-doc-buffer)
                  (cl-loop
@@ -495,8 +530,9 @@ Honor most of `eldoc-echo-area-use-multiline-p'."
                             (substitute-command-keys "\\[eldoc-doc-buffer]")))))))))
               ((= available 1)
                ;; Truncate "brutally." ; FIXME: use `eldoc-prefer-doc-buffer' too?
-               (truncate-string-to-width
-                (buffer-substring (point-min) (line-end-position 1)) width)))))
+               (with-current-buffer (eldoc-doc-buffer)
+                 (truncate-string-to-width
+                  (buffer-substring (goto-char (point-min)) (line-end-position 1)) width))))))
         (when echo-area-message
           (eldoc--message echo-area-message))))))
 
@@ -539,11 +575,11 @@ Meant as a value for `eldoc-documentation-strategy'."
                         (if (stringp str) (funcall callback str))
                         nil))))
 
-;; JT@2020-07-10: Eldoc is pre-loaded, so in in Emacs < 28 we can't
+;; JT@2020-07-10: ElDoc is pre-loaded, so in Emacs < 28 we can't
 ;; make the "old" `eldoc-documentation-function' point to the new
 ;; `eldoc-documentation-strategy', so we do the reverse.  This allows
-;; for Eldoc to be loaded in those older Emacs versions and work with
-;; whomever (major-modes, extensions, ueser) sets one of the other
+;; for ElDoc to be loaded in those older Emacs versions and work with
+;; whomever (major-modes, extensions, user) sets one or the other
 ;; variable.
 (defmacro eldoc--documentation-strategy-defcustom
     (main secondary value docstring &rest more)
@@ -663,87 +699,89 @@ have the following values:
   "Invoke `eldoc-documentation-strategy' function.
 
 That function's job is to run the `eldoc-documentation-functions'
-special hook, using the `run-hook' family of functions.  The way
-we invoke it here happens in a way strategy function can itself
-call `eldoc--make-callback' to produce values to give to the
-elements of the special hook `eldoc-documentation-functions'.
+special hook, using the `run-hook' family of functions.  ElDoc's
+built-in strategy functions play along with the
+`eldoc--make-callback' protocol, using it to produce callback to
+feed to the functgions of `eldoc-documentation-functions'.
 
-For each element of `eldoc-documentation-functions' invoked a
-corresponding call to `eldoc--make-callback' must be made.  See
-docstring of `eldoc--make-callback' for the types of callback
-that can be produced.
-
-If the strategy function does not use `eldoc--make-callback', it
-must find some alternate way to produce callbacks to feed to
-`eldoc-documentation-function', and those callbacks should
-endeavour to display the docstrings given to them."
-  (let* (;; how many docstrings callbaks have been
+Other third-party strategy functions do not use
+`eldoc--make-callback'.  They must find some alternate way to
+produce callbacks to feed to `eldoc-documentation-function' and
+should endeavour to display the docstrings eventually produced."
+  (let* (;; How many callbacks have been created by the strategy
+         ;; fucntion and passed to elements of
+         ;; `eldoc-documentation-functions'.
          (howmany 0)
-         ;; how many calls to callbacks we're waiting on. Used by
-         ;; `:patient'.
+         ;; How many calls to callbacks we're still waiting on.  Used
+         ;; by `:patient'.
          (want 0)
-         ;; how many doc strings and corresponding options have been
-         ;; registered it.
+         ;; The doc strings and corresponding options registered so
+         ;; far.
          (docs-registered '()))
-          (cl-labels
-              ((register-doc (pos string plist)
-                (when (and string (> (length string) 0))
-                  (push (cons pos (cons string plist)) docs-registered)))
-               (display-doc ()
-                (eldoc--handle-docs
-                 (mapcar #'cdr
-                         (setq docs-registered
-                               (sort docs-registered
-                                     (lambda (a b) (< (car a) (car b))))))))
-               (make-callback (method)
-                (let ((pos (prog1 howmany (cl-incf howmany))))
-                  (cl-ecase method
-                    (:enthusiast
-                     (lambda (string &rest plist)
-                       (when (and string (cl-loop for (p) in docs-registered
-                                                  never (< p pos)))
-                         (setq docs-registered '())
-                         (register-doc pos string plist)
-                         (when (and (timerp eldoc--enthusiasm-curbing-timer)
-                                    (memq eldoc--enthusiasm-curbing-timer
-                                          timer-list))
-                           (cancel-timer eldoc--enthusiasm-curbing-timer))
-                         (setq eldoc--enthusiasm-curbing-timer
-                               (run-at-time (unless (zerop pos) 0.3)
-                                            nil #'display-doc)))
-                       t))
-                    (:patient
-                     (cl-incf want)
-                     (lambda (string &rest plist)
-                       (register-doc pos string plist)
-                       (when (zerop (cl-decf want)) (display-doc))
-                       t))
-                    (:eager
-                     (lambda (string &rest plist)
-                       (register-doc pos string plist)
-                       (display-doc)
-                       t))))))
-            (let* ((eldoc--make-callback #'make-callback)
-                   (res (funcall eldoc-documentation-strategy)))
-              ;; Observe the old and the new protocol:
-              (cond (;; Old protocol: got string, output immediately;
-                     (stringp res) (register-doc 0 res nil) (display-doc))
-                    (;; Old protocol: got nil, clear the echo area;
-                     (null res) (eldoc--message nil))
-                    (;; New protocol: trust callback will be called;
-                     t))))))
+    (cl-labels
+        ((register-doc
+          (pos string plist)
+          (when (and string (> (length string) 0))
+            (push (cons pos (cons string plist)) docs-registered)))
+         (display-doc
+          ()
+          (eldoc--handle-docs
+           (mapcar #'cdr
+                   (setq docs-registered
+                         (sort docs-registered
+                               (lambda (a b) (< (car a) (car b))))))))
+         (make-callback
+          (method)
+          (let ((pos (prog1 howmany (cl-incf howmany))))
+            (cl-ecase method
+              (:enthusiast
+               (lambda (string &rest plist)
+                 (when (and string (cl-loop for (p) in docs-registered
+                                            never (< p pos)))
+                   (setq docs-registered '())
+                   (register-doc pos string plist)
+                   (when (and (timerp eldoc--enthusiasm-curbing-timer)
+                              (memq eldoc--enthusiasm-curbing-timer
+                                    timer-list))
+                     (cancel-timer eldoc--enthusiasm-curbing-timer))
+                   (setq eldoc--enthusiasm-curbing-timer
+                         (run-at-time (unless (zerop pos) 0.3)
+                                      nil #'display-doc)))
+                 t))
+              (:patient
+               (cl-incf want)
+               (lambda (string &rest plist)
+                 (register-doc pos string plist)
+                 (when (zerop (cl-decf want)) (display-doc))
+                 t))
+              (:eager
+               (lambda (string &rest plist)
+                 (register-doc pos string plist)
+                 (display-doc)
+                 t))))))
+      (let* ((eldoc--make-callback #'make-callback)
+             (res (funcall eldoc-documentation-strategy)))
+        ;; Observe the old and the new protocol:
+        (cond (;; Old protocol: got string, output immediately;
+               (stringp res) (register-doc 0 res nil) (display-doc))
+              (;; Old protocol: got nil, clear the echo area;
+               (null res) (eldoc--message nil))
+              (;; New protocol: trust callback will be called;
+               t))))))
 
 (defun eldoc-print-current-symbol-info (&optional interactive)
   "Document thing at point."
   (interactive '(t))
-  (cond (interactive
-         (eldoc--invoke-strategy))
-        (t
-         (if (not (eldoc-display-message-p))
-             ;; Erase the last message if we won't display a new one.
-             (when eldoc-last-message
-               (eldoc--message nil))
+  (let ((token (eldoc--request-state)))
+    (cond (interactive
+           (eldoc--invoke-strategy))
+          ((not (eldoc--request-docs-p token))
+           ;; Erase the last message if we won't display a new one.
+           (when eldoc-last-message
+             (eldoc--message nil)))
+          (t
            (let ((non-essential t))
+             (setq eldoc--last-request-state token)
              ;; Only keep looking for the info as long as the user hasn't
              ;; requested our attention.  This also locally disables
              ;; inhibit-quit.

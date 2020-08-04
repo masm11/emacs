@@ -162,6 +162,9 @@ changes."
 (ert-deftest mod-test-globref-free-test ()
   (should (eq (mod-test-globref-free 1 'a "test" 'b) 'ok)))
 
+(ert-deftest mod-test-globref-reordered ()
+  (should (equal (mod-test-globref-reordered) '(t t t nil))))
+
 (ert-deftest mod-test-string-a-to-b-test ()
   (should (string= (mod-test-string-a-to-b "aaa") "bbb")))
 
@@ -272,6 +275,24 @@ must evaluate to a regular expression string."
     (mod-test-invalid-store)
     (mod-test-invalid-load)))
 
+(ert-deftest module--test-assertions--load-non-live-object-with-global-copy ()
+  "Check that -module-assertions verify that non-live objects aren't accessed.
+This differs from `module--test-assertions-load-non-live-object'
+in that it stows away a global reference.  The module assertions
+should nevertheless detect the invalid load."
+  (skip-unless (or (file-executable-p mod-test-emacs)
+                   (and (eq system-type 'windows-nt)
+                        (file-executable-p (concat mod-test-emacs ".exe")))))
+  ;; This doesn't yet cause undefined behavior.
+  (should (eq (mod-test-invalid-store-copy) 123))
+  (module--test-assertion (rx "Emacs value not found in "
+                              (+ digit) " values of "
+                              (+ digit) " environments\n")
+    ;; Storing and reloading a local value causes undefined behavior,
+    ;; which should be detected by the module assertions.
+    (mod-test-invalid-store-copy)
+    (mod-test-invalid-load)))
+
 (ert-deftest module--test-assertions--call-emacs-from-gc ()
   "Check that -module-assertions prevents calling Emacs functions
 during garbage collection."
@@ -281,6 +302,17 @@ during garbage collection."
   (module--test-assertion
       (rx "Module function called during garbage collection\n")
     (mod-test-invalid-finalizer)
+    (garbage-collect)))
+
+(ert-deftest module--test-assertions--globref-invalid-free ()
+  "Check that -module-assertions detects invalid freeing of a
+local reference."
+    (skip-unless (or (file-executable-p mod-test-emacs)
+                   (and (eq system-type 'windows-nt)
+                        (file-executable-p (concat mod-test-emacs ".exe")))))
+  (module--test-assertion
+      (rx "Global value was not found in list of " (+ digit) " globals")
+    (mod-test-globref-invalid-free)
     (garbage-collect)))
 
 (ert-deftest module/describe-function-1 ()

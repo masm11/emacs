@@ -135,7 +135,9 @@ HTML-specified colors or not.  This sets the @code{shr-use-colors} variable.
   A URL can be downloaded with @kbd{d} (@code{eww-download}).  This
 will download the link under point if there is one, or else the URL of
 the current page.  The file will be written to the directory specified
-in @code{eww-download-directory} (default: @file{~/Downloads/}).
+by @code{eww-download-directory} (default: @file{~/Downloads/}, if it
+exists; otherwise as specified by the @samp{DOWNLOAD} @acronym{XDG}
+directory)).
 
 @findex eww-back-url
 @findex eww-forward-url
@@ -282,6 +284,14 @@ in the HTML page, but adjusts them if needed to keep a certain minimum
 contrast.  If that is still too low for you, you can customize the
 variables @code{shr-color-visible-distance-min} and
 @code{shr-color-visible-luminance-min} to get a better contrast.
+
+@vindex shr-max-width
+@vindex shr-width
+  By default, the max width used when rendering is 120 characters, but
+this can be adjusted by changing the @code{shr-max-width} variable.
+If a specified width is preferred no matter what the width of the
+window is, @code{shr-width} can be set.  If both variables are
+@code{nil}, the window width will always be used.
 
 @vindex shr-discard-aria-hidden
 @cindex @code{aria-hidden}, HTML attribute
