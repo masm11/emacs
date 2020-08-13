@@ -31,8 +31,13 @@ sudo pacman -U emacs-pgtk*.tar.xz
 ## Running
 
 ```sh
-cd src
-GDK_BACKEND=wayland ./emacs  (or try ./emacs -Q if you have problems.)
+./src/emacs
+```
+
+If you want to know whether it is really running on wayland native, then run as follows:
+
+```sh
+GDK_BACKEND=wayland ./src/emacs
 ```
 
 ## X11 and Wayland
@@ -128,17 +133,17 @@ I do, so no problem.
 ## My Environment
 
 - archlinux
-- gtk+ 3.24.20
-- glib2 2.64.3
+- gtk+ 3.24.22
+- glib2 2.64.4
 - gcc 10.1.0
 - wayland 1.18.0
 - wayland-protocols 1.20
 - cairo 1.17.2
 - freetype2 2.10.2
-- imagemagick 7.0.10.22
+- imagemagick 7.0.10.26
 - ibus 1.5.22
 - mozc 2.23.2815.102
-- wayfire e4f8d2bf
+- wayfire 167c3c35
 
 ## Notice
 
