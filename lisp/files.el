@@ -752,10 +752,16 @@ resulting list of directory names.  For an empty path element (i.e.,
 a leading or trailing separator, or two adjacent separators), return
 nil (meaning `default-directory') as the associated list element."
   (when (stringp search-path)
-    (mapcar (lambda (f)
-	      (if (equal "" f) nil
-		(substitute-in-file-name (file-name-as-directory f))))
-	    (split-string search-path path-separator))))
+    (let ((spath (substitute-env-vars search-path)))
+      (mapcar (lambda (f)
+                (if (equal "" f) nil
+                  (let ((dir (expand-file-name (file-name-as-directory f))))
+                    ;; Previous implementation used `substitute-in-file-name'
+                    ;; which collapse multiple "/" in front.  Do the same for
+                    ;; backward compatibility.
+                    (if (string-match "\\`/+" dir)
+                        (substring dir (1- (match-end 0))) dir))))
+              (split-string spath path-separator)))))
 
 (defun cd-absolute (dir)
   "Change current directory to given absolute file name DIR."
@@ -978,14 +984,6 @@ one or more of those symbols."
         (setq names (nconc names fullnames)))
       (completion-table-with-context
        string-dir names string-file pred action)))))
-
-(defun locate-file-completion (string path-and-suffixes action)
-  "Do completion for file names passed to `locate-file'.
-PATH-AND-SUFFIXES is a pair of lists, (DIRECTORIES . SUFFIXES)."
-  (declare (obsolete locate-file-completion-table "23.1"))
-  (locate-file-completion-table (car path-and-suffixes)
-                                (cdr path-and-suffixes)
-                                string nil action))
 
 (defvar locate-dominating-stop-dir-regexp
   (purecopy "\\`\\(?:[\\/][\\/][^\\/]+[\\/]\\|/\\(?:net\\|afs\\|\\.\\.\\.\\)/\\)\\'")
@@ -2683,8 +2681,6 @@ since only a single case-insensitive search through the alist is made."
      ("\\.p\\'" . pascal-mode)
      ("\\.pas\\'" . pascal-mode)
      ("\\.\\(dpr\\|DPR\\)\\'" . delphi-mode)
-     ("\\.ad[abs]\\'" . ada-mode)
-     ("\\.ad[bs]\\.dg\\'" . ada-mode)
      ("\\.\\([pP]\\([Llm]\\|erl\\|od\\)\\|al\\)\\'" . perl-mode)
      ("Imakefile\\'" . makefile-imake-mode)
      ("Makeppfile\\(?:\\.mk\\)?\\'" . makefile-makepp-mode) ; Put this before .mk

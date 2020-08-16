@@ -619,7 +619,12 @@ buffer."
       ;; Bypass a bug in certain versions of bash.
       (when (string-equal shell "bash")
         (add-hook 'comint-preoutput-filter-functions
-                  #'shell-filter-ctrl-a-ctrl-b nil t)))
+                  #'shell-filter-ctrl-a-ctrl-b nil t))
+
+      ;; Skip extended history for zsh.
+      (when (string-equal shell "zsh")
+        (setq-local comint-input-ring-file-prefix
+                    ": [[:digit:]]+:[[:digit:]]+;")))
     (comint-read-input-ring t)))
 
 (defun shell-apply-ansi-color (beg end face)
@@ -984,9 +989,6 @@ this feature; see the function `dirtrack-mode'."
   (if shell-dirtrack-mode
       (add-hook 'comint-input-filter-functions #'shell-directory-tracker nil t)
     (remove-hook 'comint-input-filter-functions #'shell-directory-tracker t)))
-
-(define-obsolete-function-alias 'shell-dirtrack-toggle #'shell-dirtrack-mode
-  "23.1")
 
 (defun shell-cd (dir)
   "Do normal `cd' to DIR, and set `list-buffers-directory'."

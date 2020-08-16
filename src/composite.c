@@ -652,7 +652,6 @@ Lisp_Object
 composition_gstring_put_cache (Lisp_Object gstring, ptrdiff_t len)
 {
   struct Lisp_Hash_Table *h = XHASH_TABLE (gstring_hash_table);
-  hash_rehash_if_needed (h);
   Lisp_Object header = LGSTRING_HEADER (gstring);
   Lisp_Object hash = h->test.hashfn (header, h);
   if (len < 0)
@@ -1940,7 +1939,7 @@ syms_of_composite (void)
   staticpro (&gstring_hash_table);
 
   staticpro (&gstring_work_headers);
-  gstring_work_headers = make_uninit_vector (8);
+  gstring_work_headers = make_nil_vector (8);
   for (i = 0; i < 8; i++)
     ASET (gstring_work_headers, i, make_nil_vector (i + 2));
   staticpro (&gstring_work);

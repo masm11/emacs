@@ -35,7 +35,6 @@ along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>.  */
 #include "buffer.h"
 /* These help us bind and responding to switch-frame events.  */
 #include "keyboard.h"
-#include "ptr-bounds.h"
 #include "frame.h"
 #include "blockinput.h"
 #include "termchar.h"
@@ -2569,21 +2568,18 @@ before calling this function on it, like this.
   if (FRAME_WINDOW_P (XFRAME (frame)))
     /* Warping the mouse will cause enternotify and focus events.  */
     frame_set_mouse_position (XFRAME (frame), xval, yval);
-#else
-#if defined (MSDOS)
+#elif defined MSDOS
   if (FRAME_MSDOS_P (XFRAME (frame)))
     {
       Fselect_frame (frame, Qnil);
       mouse_moveto (xval, yval);
     }
+#elif defined HAVE_GPM
+  Fselect_frame (frame, Qnil);
+  term_mouse_moveto (xval, yval);
 #else
-#ifdef HAVE_GPM
-    {
-      Fselect_frame (frame, Qnil);
-      term_mouse_moveto (xval, yval);
-    }
-#endif
-#endif
+  (void) xval;
+  (void) yval;
 #endif
 
   return Qnil;
@@ -2610,21 +2606,18 @@ before calling this function on it, like this.
   if (FRAME_WINDOW_P (XFRAME (frame)))
     /* Warping the mouse will cause enternotify and focus events.  */
     frame_set_mouse_pixel_position (XFRAME (frame), xval, yval);
-#else
-#if defined (MSDOS)
+#elif defined MSDOS
   if (FRAME_MSDOS_P (XFRAME (frame)))
     {
       Fselect_frame (frame, Qnil);
       mouse_moveto (xval, yval);
     }
+#elif defined HAVE_GPM
+  Fselect_frame (frame, Qnil);
+  term_mouse_moveto (xval, yval);
 #else
-#ifdef HAVE_GPM
-    {
-      Fselect_frame (frame, Qnil);
-      term_mouse_moveto (xval, yval);
-    }
-#endif
-#endif
+  (void) xval;
+  (void) yval;
 #endif
 
   return Qnil;
@@ -3661,6 +3654,9 @@ bottom edge of FRAME's display.  */)
 #ifdef HAVE_WINDOW_SYSTEM
       if (FRAME_TERMINAL (f)->set_frame_offset_hook)
 	FRAME_TERMINAL (f)->set_frame_offset_hook (f, xval, yval, 1);
+#else
+      (void) xval;
+      (void) yval;
 #endif
     }
 
@@ -5029,8 +5025,6 @@ gui_display_get_resource (Display_Info *dpyinfo, Lisp_Object attribute,
   USE_SAFE_ALLOCA;
   char *name_key = SAFE_ALLOCA (name_keysize + class_keysize);
   char *class_key = name_key + name_keysize;
-  name_key = ptr_bounds_clip (name_key, name_keysize);
-  class_key = ptr_bounds_clip (class_key, class_keysize);
 
   /* Start with emacs.FRAMENAME for the name (the specific one)
      and with `Emacs' for the class key (the general one).  */
@@ -5101,9 +5095,6 @@ x_get_resource_string (const char *attribute, const char *class)
   ptrdiff_t class_keysize = sizeof (EMACS_CLASS) - 1 + strlen (class) + 2;
   char *name_key = SAFE_ALLOCA (name_keysize + class_keysize);
   char *class_key = name_key + name_keysize;
-  name_key = ptr_bounds_clip (name_key, name_keysize);
-  class_key = ptr_bounds_clip (class_key, class_keysize);
-
   esprintf (name_key, "%s.%s", SSDATA (Vinvocation_name), attribute);
   sprintf (class_key, "%s.%s", EMACS_CLASS, class);
 

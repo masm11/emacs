@@ -1596,22 +1596,18 @@ the face font sort order.  */)
   for (i = nfonts - 1; i >= 0; --i)
     {
       Lisp_Object font = AREF (vec, i);
-      Lisp_Object v = make_uninit_vector (8);
-      int point;
-      Lisp_Object spacing;
-
-      ASET (v, 0, AREF (font, FONT_FAMILY_INDEX));
-      ASET (v, 1, FONT_WIDTH_SYMBOLIC (font));
-      point = PIXEL_TO_POINT (XFIXNUM (AREF (font, FONT_SIZE_INDEX)) * 10,
-			      FRAME_RES_Y (f));
-      ASET (v, 2, make_fixnum (point));
-      ASET (v, 3, FONT_WEIGHT_SYMBOLIC (font));
-      ASET (v, 4, FONT_SLANT_SYMBOLIC (font));
-      spacing = Ffont_get (font, QCspacing);
-      ASET (v, 5, (NILP (spacing) || EQ (spacing, Qp)) ? Qnil : Qt);
-      ASET (v, 6, Ffont_xlfd_name (font, Qnil));
-      ASET (v, 7, AREF (font, FONT_REGISTRY_INDEX));
-
+      int point = PIXEL_TO_POINT (XFIXNUM (AREF (font, FONT_SIZE_INDEX)) * 10,
+				  FRAME_RES_Y (f));
+      Lisp_Object spacing = Ffont_get (font, QCspacing);
+      Lisp_Object v = CALLN (Fvector,
+			     AREF (font, FONT_FAMILY_INDEX),
+			     FONT_WIDTH_SYMBOLIC (font),
+			     make_fixnum (point),
+			     FONT_WEIGHT_SYMBOLIC (font),
+			     FONT_SLANT_SYMBOLIC (font),
+			     NILP (spacing) || EQ (spacing, Qp) ? Qnil : Qt,
+			     Ffont_xlfd_name (font, Qnil),
+			     AREF (font, FONT_REGISTRY_INDEX));
       result = Fcons (v, result);
     }
 
@@ -2541,6 +2537,7 @@ merge_face_ref (struct window *w,
 {
   bool ok = true;		/* Succeed without an error? */
   Lisp_Object filtered_face_ref;
+  bool attr_filter_passed = false;
 
   filtered_face_ref = face_ref;
   do
@@ -2637,6 +2634,7 @@ merge_face_ref (struct window *w,
 		      || UNSPECIFIEDP (scratch_attrs[attr_filter]))
 		    return true;
 		}
+	      attr_filter_passed = true;
 	    }
 	  while (CONSP (face_ref) && CONSP (XCDR (face_ref)))
 	    {
@@ -2800,9 +2798,21 @@ merge_face_ref (struct window *w,
 		{
 		  /* This is not really very useful; it's just like a
 		     normal face reference.  */
-		  if (! merge_face_ref (w, f, value, to,
-		                        err_msgs, named_merge_points,
-		                        attr_filter))
+		  if (attr_filter_passed)
+		    {
+		      /* We already know that this face was tested
+			 against attr_filter and was found applicable,
+			 so don't pass attr_filter to merge_face_ref.
+			 This is for when a face is specified like
+			 (:inherit FACE :extend t), but the parent
+			 FACE itself doesn't specify :extend.  */
+		      if (! merge_face_ref (w, f, value, to,
+					    err_msgs, named_merge_points, 0))
+			err = true;
+		    }
+		  else if (! merge_face_ref (w, f, value, to,
+					     err_msgs, named_merge_points,
+					     attr_filter))
 		    err = true;
 		}
 	      else if (EQ (keyword, QCextend))

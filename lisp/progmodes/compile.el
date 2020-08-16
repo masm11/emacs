@@ -316,8 +316,8 @@ of[ \t]+\"?\\([a-zA-Z]?:?[^\":\n]+\\)\"?:" 3 2 nil (1))
     (gcc-include
      "^\\(?:In file included \\|                 \\|\t\\)from \
 \\([0-9]*[^0-9\n]\\(?:[^\n :]\\| [^-/\n]\\|:[^ \n]\\)*?\\):\
-\\([0-9]+\\)\\(?::\\([0-9]+\\)\\)?\\(?:\\(:\\)\\|\\(,\\|$\\)\\)?"
-     1 2 3 (4 . 5))
+\\([0-9]+\\)\\(?::\\([0-9]+\\)\\)?\\(?:\\([:,]\\|$\\)\\)?"
+     1 2 3 (nil . 4))
 
     (ruby-Test::Unit
      "^    [[ ]?\\([^ (].*\\):\\([1-9][0-9]*\\)\\(\\]\\)?:in " 1 2)
@@ -2373,12 +2373,10 @@ and runs `compilation-filter-hook'."
 	  (set-marker min nil)
 	  (set-marker max nil))))))
 
-;;; test if a buffer is a compilation buffer, assuming we're in the buffer
 (defsubst compilation-buffer-internal-p ()
   "Test if inside a compilation buffer."
   (local-variable-p 'compilation-locs))
 
-;;; test if a buffer is a compilation buffer, using compilation-buffer-internal-p
 (defsubst compilation-buffer-p (buffer)
   "Test if BUFFER is a compilation buffer."
   (with-current-buffer buffer
@@ -2419,12 +2417,9 @@ and runs `compilation-filter-hook'."
                                                 &optional object limit)
   (let (parsed res)
     (while (progn
-             ;; We parse the buffer here "on-demand" by chunks of 500 chars.
-             ;; But we could also just parse the whole buffer.
              (compilation--ensure-parse
               (setq parsed (max compilation--parsed
-                                (min (+ position 500)
-                                     (or limit (point-max))))))
+                                (or limit (point-max)))))
              (and (or (not (setq res (next-single-property-change
                                       position prop object limit)))
                       (eq res limit))

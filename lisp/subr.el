@@ -883,6 +883,10 @@ side-effects, and the argument LIST is not modified."
 
 ;;;; Keymap support.
 
+;; Declare before first use of `save-match-data',
+;; where it is used internally.
+(defvar save-match-data-internal)
+
 (defun kbd (keys)
   "Convert KEYS to the internal Emacs key representation.
 KEYS should be a string in the format returned by commands such
@@ -1579,11 +1583,6 @@ be a list of the form returned by `event-start' and `event-end'."
 (make-obsolete 'string-as-multibyte "use `decode-coding-string'." "26.1")
 (make-obsolete 'string-make-multibyte "use `decode-coding-string'." "26.1")
 
-(defun forward-point (n)
-  "Return buffer position N characters after (before if N negative) point."
-  (declare (obsolete "use (+ (point) N) instead." "23.1"))
-  (+ (point) n))
-
 (defun log10 (x)
   "Return (log X 10), the log base 10 of X."
   (declare (obsolete log "24.4"))
@@ -1608,8 +1607,6 @@ be a list of the form returned by `event-start' and `event-end'."
 (make-obsolete 'set-window-redisplay-end-trigger nil "23.1")
 
 (make-obsolete 'run-window-configuration-change-hook nil "27.1")
-(make-obsolete 'process-filter-multibyte-p nil "23.1")
-(make-obsolete 'set-process-filter-multibyte nil "23.1")
 
 (make-obsolete-variable 'command-debug-status
                         "expect it to be removed in a future version." "25.2")
@@ -4104,8 +4101,6 @@ MODES is as for `set-default-file-modes'."
 
 
 ;;; Matching and match data.
-
-(defvar save-match-data-internal)
 
 ;; We use save-match-data-internal as the local variable because
 ;; that works ok in practice (people should not use that variable elsewhere).
