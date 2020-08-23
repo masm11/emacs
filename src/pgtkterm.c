@@ -300,7 +300,6 @@ x_set_offset (struct frame *f, int xoff, int yoff, int change_gravity)
   PGTK_TRACE ("x_set_offset: %d,%d,%d.", xoff, yoff, change_gravity);
 
   struct frame *parent = FRAME_PARENT_FRAME (f);
-  GtkAllocation a = { 0 };
   int surface_pos_x = 0;
   int surface_pos_y = 0;
 
@@ -308,8 +307,19 @@ x_set_offset (struct frame *f, int xoff, int yoff, int change_gravity)
     {
       /* determing the "height" of the titlebar, by finding the
 	 location of the "emacsfixed" widget on the surface/window */
+      GtkAllocation a = { 0 };
       GtkWidget *w = FRAME_GTK_WIDGET (parent);
+      GdkWindow *gw = gtk_widget_get_window (w);
+      GdkRectangle rect = {0};
+
       gtk_widget_get_allocation (w, &a);
+
+      gdk_window_get_frame_extents (gw, &rect);
+
+      surface_pos_x += rect.x + rect.width - a.width;
+      surface_pos_y += rect.y + rect.height - a.height;
+
+      PGTK_TRACE ("x_set_offset: %d,%d,%d.", surface_pos_x, surface_pos_y, change_gravity);
     }
 
   if (change_gravity > 0)
@@ -330,8 +340,8 @@ x_set_offset (struct frame *f, int xoff, int yoff, int change_gravity)
     }
 
   block_input ();
-  surface_pos_y = f->top_pos + a.y;
-  surface_pos_x = f->left_pos + a.x;
+  surface_pos_y += f->top_pos ;//+ a.y;
+  surface_pos_x += f->left_pos ;//+ a.x;
 
   /* When a position change was requested and the outer GTK widget
      has been realized already, leave it to gtk_window_move to DTRT
