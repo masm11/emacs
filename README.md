@@ -117,18 +117,15 @@ On gdb, you may want to do:
 
 ## Input Methods
 
+You should be able to use input methods since `GtkIMContext` is enabled
+by default.
+
+If you don't like `GtkIMContext`, you can disable it by writing as follows
+in `~/.emacs`:
+
 ```elisp
-(when (eq window-system 'pgtk)
-  (pgtk-use-im-context t))
+(setq pgtk-use-im-context-on-new-connection nil)
 ```
-
-This enables Gtk's `GtkIMContext`.
-
-However, when you type e.g. `C-x o`,
-`C-x` goes through input methods and is handled by Emacs,
-and `o` is handled by input methods, so `お` appears as a preedit text.
-I have no idea. You can turn off input method before typing `C-x o`.
-I do, so no problem.
 
 ## My Environment
 
