@@ -1937,11 +1937,13 @@ their associated keys and their effects."
 	(find-file-noselect file 'nowarn)
 	(set-window-buffer (selected-window)
 			   (set-buffer (find-buffer-visiting file)))
-	;; If this command was invoked outside of a Todo mode buffer,
-	;; the call to todo-current-category above returned nil.  If
-	;; we just entered Todo mode now, then cat was set to the
-	;; file's first category, but if todo-mode was already
-	;; enabled, cat did not get set, so we have to do that.
+        ;; If FILE is not in Todo mode, set it now, which also sets
+	;; CAT to the file's first category.
+	(unless (derived-mode-p 'todo-mode) (todo-mode))
+        ;; But if FILE was already in todo-mode and the item insertion
+	;; command was invoked outside of a Todo mode buffer, the
+	;; above calls to todo-current-category returned nil, so we
+	;; have to explicitly set CAT to the current category.
 	(unless cat
 	  (setq cat (todo-current-category)))
 	(setq todo-current-todo-file file)
@@ -2169,7 +2171,9 @@ the item at point."
 		  (if comment-delete
 		      (when (todo-y-or-n-p "Delete comment? ")
 			(delete-region (match-beginning 0) (match-end 0)))
-		    (replace-match (read-string prompt (cons (match-string 1) 1))
+		    (replace-match (save-match-data
+                                     (read-string prompt
+                                                  (cons (match-string 1) 1)))
 				   nil nil nil 1))
 		(if comment-delete
 		    (user-error "There is no comment to delete")
@@ -2348,25 +2352,35 @@ made in the number or names of categories."
 			    ((or (string= omonth "*") (= mm 13))
 			     (user-error "Cannot increment *"))
 			    (t
-			     (let ((mminc (+ mm inc (if (< inc 0) 12 0))))
-			       ;; Increment or decrement month by INC
-			       ;; modulo 12.
-			       (setq mm (% mminc 12))
-			       ;; If result is 0, make month December.
-			       (setq mm (if (= mm 0) 12 (abs mm)))
+			     (let* ((mmo mm)
+                                    ;; Change by 12 or more months?
+                                    (bigincp (>= (abs inc) 12))
+                                    ;; Month number is in range 1..12.
+                                    (mminc (+ mm (% inc 12)))
+			            (mm (% (+ mminc 12) 12))
+			            ;; 12n mod 12 = 0, so 0 is December.
+			            (mm (if (= mm 0) 12 mm))
+                                    ;; Does change in month cross year?
+                                    (mmcmp (cond ((< inc 0) (> mm mmo))
+                                                 ((> inc 0) (< mm mmo))))
+                                    (yyadjust (if bigincp
+                                                  (+ (abs (/ inc 12))
+                                                     (if mmcmp 1 0))
+                                                1)))
 			       ;; Adjust year if necessary.
-			       (setq year (or (and (cond ((> mminc 12)
-							  (+ yy (/ mminc 12)))
-							 ((< mminc 1)
-							  (- yy (/ mminc 12) 1))
-							 (t yy))
-						   (number-to-string yy))
-					      oyear)))
-			     ;; Return the changed numerical month as
-			     ;; a string or the corresponding month name.
-			     (if omonth
-				 (number-to-string mm)
-			       (aref tma-array (1- mm))))))
+                               (setq yy (cond ((and (< inc 0)
+                                                    (or mmcmp bigincp))
+                                               (- yy yyadjust))
+                                              ((and (> inc 0)
+                                                    (or mmcmp bigincp))
+                                               (+ yy yyadjust))
+                                              (t yy)))
+                               (setq year (number-to-string yy))
+			       ;; Return the changed numerical month as
+			       ;; a string or the corresponding month name.
+			       (if omonth
+				   (number-to-string mm)
+			         (aref tma-array (1- mm)))))))
                 ;; Since the number corresponding to the arbitrary
                 ;; month name "*" is out of the range of
                 ;; calendar-last-day-of-month, set it to 1
@@ -5923,8 +5937,15 @@ categories from `todo-category-completions-files'."
 		       (todo-absolute-file-name
 			(let ((files (mapcar #'todo-short-file-name catfil)))
 			  (completing-read (format str cat) files)))))))
-      ;; Default to the current file.
-      (unless file0 (setq file0 todo-current-todo-file))
+      ;; When called without arg FILE, use fallback todo file.
+      (unless file0 (setq file0 (or todo-current-todo-file
+                                    ;; If we're outside of todo-mode
+                                    ;; but there is a current todo
+                                    ;; file, use it.
+                                    todo-global-current-todo-file
+                                    ;; Else, use the default todo file.
+                                    (todo-absolute-file-name
+				     todo-default-todo-file))))
       ;; First validate only a name passed interactively from
       ;; todo-add-category, which must be of a nonexistent category.
       (unless (and (assoc cat categories) (not add))
@@ -6419,8 +6440,7 @@ Filtered Items mode following todo (not done) items."
     ("i"	     todo-insert-item)
     ("k"	     todo-delete-item)
     ("m"	     todo-move-item)
-    ("u"	     todo-item-undone)
-    ([remap newline] newline-and-indent))
+    ("u"	     todo-item-undone))
   "List of key bindings for Todo mode only.")
 
 (defvar todo-key-bindings-t+a+f
@@ -6486,7 +6506,6 @@ Filtered Items mode following todo (not done) items."
 (defvar todo-edit-mode-map
   (let ((map (make-sparse-keymap)))
     (define-key map "\C-x\C-q" 'todo-edit-quit)
-    (define-key map [remap newline] 'newline-and-indent)
     map)
   "Todo Edit mode keymap.")
 
@@ -6645,7 +6664,6 @@ Added to `window-configuration-change-hook' in Todo mode."
   (setq-local font-lock-defaults '(todo-font-lock-keywords t))
   (setq-local revert-buffer-function #'todo-revert-buffer)
   (setq-local tab-width todo-indent-to-here)
-  (setq-local indent-line-function #'todo-indent)
   (when todo-wrap-lines
     (visual-line-mode)
     (setq wrap-prefix (make-string todo-indent-to-here 32))))
@@ -6720,6 +6738,7 @@ Added to `window-configuration-change-hook' in Todo mode."
 
 \\{todo-edit-mode-map}"
   (todo-modes-set-1)
+  (setq-local indent-line-function #'todo-indent)
   (if (> (buffer-size) (- (point-max) (point-min)))
       ;; Editing one item in an indirect buffer, so buffer-file-name is nil.
       (setq-local todo-current-todo-file todo-global-current-todo-file)

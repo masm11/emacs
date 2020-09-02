@@ -251,7 +251,7 @@ read_minibuf_noninteractive (Lisp_Object prompt, bool expflag,
   else
     {
       xfree (line);
-      error ("Error reading from stdin");
+      xsignal1 (Qend_of_file, build_string ("Error reading from stdin"));
     }
 
   /* If Lisp form desired instead of string, parse it.  */
@@ -1039,7 +1039,7 @@ Prompt with PROMPT.  */)
 DEFUN ("read-variable", Fread_variable, Sread_variable, 1, 2, 0,
        doc: /* Read the name of a user option and return it as a symbol.
 Prompt with PROMPT.  By default, return DEFAULT-VALUE or its first element
-if it is a list.
+if it is a list of strings.
 A user option, or customizable variable, is one for which
 `custom-variable-p' returns non-nil.  */)
   (Lisp_Object prompt, Lisp_Object default_value)

@@ -223,6 +223,13 @@ This variable is buffer-local."
 		 (other :tag "on" t))
   :group 'comint)
 
+(defcustom comint-highlight-input t
+  "If non-nil, highlight input with `comint-highlight-input' face.
+Otherwise keep the original highlighting untouched."
+  :version "28.1"
+  :type 'boolean
+  :group 'comint)
+
 (defface comint-highlight-input '((t (:weight bold)))
   "Face to use to highlight user input."
   :group 'comint)
@@ -1897,9 +1904,10 @@ Similarly for Soar, Scheme, etc."
               (end (if no-newline (point) (1- (point)))))
           (with-silent-modifications
             (when (> end beg)
-              (add-text-properties beg end
-                                   '(front-sticky t
-                                     font-lock-face comint-highlight-input))
+              (when comint-highlight-input
+                (add-text-properties beg end
+                                     '( font-lock-face comint-highlight-input
+                                        front-sticky t )))
               (unless comint-use-prompt-regexp
                 ;; Give old user input a field property of `input', to
                 ;; distinguish it from both process output and unsent
@@ -2415,11 +2423,13 @@ Security bug: your string can still be temporarily recovered with
 (defun comint-watch-for-password-prompt (string)
   "Prompt in the minibuffer for password and send without echoing.
 Looks for a match to `comint-password-prompt-regexp' in order
-to detect the need to (prompt and) send a password.
+to detect the need to (prompt and) send a password.  Ignores any
+carriage returns (\\r) in STRING.
 
 This function could be in the list `comint-output-filter-functions'."
   (when (let ((case-fold-search t))
-	  (string-match comint-password-prompt-regexp string))
+	  (string-match comint-password-prompt-regexp
+                        (replace-regexp-in-string "\r" "" string)))
     (when (string-match "^[ \n\r\t\v\f\b\a]+" string)
       (setq string (replace-match "" t t string)))
     (let ((comint--prompt-recursion-depth (1+ comint--prompt-recursion-depth)))
@@ -3442,7 +3452,7 @@ the completions."
 		 (eq (window-buffer (posn-window (event-start first)))
 		     (get-buffer "*Completions*"))
 		 (memq (key-binding key)
-                       '(mouse-choose-completion choose-completion))))
+                       '(choose-completion))))
 	  ;; If the user does choose-completion with the mouse,
 	  ;; execute the command, then delete the completion window.
 	  (progn

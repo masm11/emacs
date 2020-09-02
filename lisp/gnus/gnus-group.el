@@ -2411,7 +2411,8 @@ the bug number, and browsing the URL must return mbox output."
   (require 'bug-reference)
   (let ((def (cond ((thing-at-point-looking-at bug-reference-bug-regexp 500)
                     (match-string 2))
-                   ((number-at-point)))))
+                   ((and (number-at-point)
+                         (abs (number-at-point)))))))
     ;; Pass DEF as the value of COLLECTION instead of DEF because:
     ;; a) null input should not cause DEF to be returned and
     ;; b) TAB and M-n still work this way.
@@ -4300,8 +4301,7 @@ The hook `gnus-suspend-gnus-hook' is called before actually suspending."
     ;; Closing all the backends is useful (for instance) when when the
     ;; IP addresses have changed and you need to reconnect.
     (dolist (elem gnus-opened-servers)
-      (gnus-close-server (car elem))
-      (setcar (cdr elem) 'closed))
+      (gnus-close-server (car elem)))
     (when group-buf
       (bury-buffer group-buf)
       (delete-windows-on group-buf t))))

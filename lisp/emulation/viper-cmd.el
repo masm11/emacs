@@ -1564,7 +1564,7 @@ invokes the command before that, etc."
 
 ;; Hook used in viper-undo
 (defun viper-after-change-undo-hook (beg end _len)
-  (if (and (boundp 'undo-in-progress) undo-in-progress)
+  (if undo-in-progress
       (setq undo-beg-posn beg
 	    undo-end-posn (or end beg))
     ;; some other hooks may be changing various text properties in
@@ -1886,15 +1886,11 @@ Undo previous insertion and inserts new."
     (or unread-command-events
 	executing-kbd-macro
 	(sit-for 840))
-    (if (fboundp 'minibuffer-prompt-end)
-	(delete-region (minibuffer-prompt-end) (point-max))
-      (erase-buffer))
+    (delete-region (minibuffer-prompt-end) (point-max))
     (insert viper-initial)))
 
 (defsubst viper-minibuffer-real-start ()
-  (if (fboundp 'minibuffer-prompt-end)
-      (minibuffer-prompt-end)
-    (point-min)))
+  (minibuffer-prompt-end))
 
 (defun viper-minibuffer-post-command-hook()
   (when (active-minibuffer-window)
@@ -2883,7 +2879,7 @@ If point is on a widget or a button, simulate clicking on that widget/button."
                (and (consp widget)
                     (get (widget-type widget) 'widget-type))))
         (widget-button-press (point))
-      (if (and (fboundp 'button-at) (fboundp 'push-button) (button-at (point)))
+      (if (button-at (point))
           (push-button)
 	;; not a widget or a button
         (save-excursion
@@ -4738,8 +4734,7 @@ Please, specify your level now: "))
 	(viper-color-display-p (if (viper-window-display-p)
 			      (viper-color-display-p)
                               'non-x))
-        (viper-frame-parameters (if (fboundp 'frame-parameters)
-                                    (frame-parameters (selected-frame))))
+        (viper-frame-parameters (frame-parameters (selected-frame)))
 	(viper-minibuffer-emacs-face (if (viper-has-face-support-p)
                                          (facep
                                           viper-minibuffer-emacs-face)

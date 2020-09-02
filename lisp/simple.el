@@ -247,7 +247,7 @@ from which next-error navigated, and a target buffer TO-BUFFER."
                                                         extra-test-exclusive)
   "Try the current buffer when outside navigation.
 But return nil if we navigated to the current buffer by the means
-of `next-error' command.  Othewise, return it if it's next-error
+of `next-error' command.  Otherwise, return it if it's next-error
 capable."
   ;; Check that next-error-buffer has no buffer-local value
   ;; (i.e. we never navigated to the current buffer from another),
@@ -1847,9 +1847,15 @@ to get different commands to edit and resubmit."
 	     (lambda ()
 	       ;; Get a command name at point in the original buffer
 	       ;; to propose it after M-n.
-	       (with-current-buffer (window-buffer (minibuffer-selected-window))
-		 (and (commandp (function-called-at-point))
-		      (format "%S" (function-called-at-point)))))))
+	       (let ((def (with-current-buffer
+			      (window-buffer (minibuffer-selected-window))
+			    (and (commandp (function-called-at-point))
+				 (format "%S" (function-called-at-point)))))
+		     (all (sort (minibuffer-default-add-completions)
+                                #'string<)))
+		 (if def
+		     (cons def (delete def all))
+		   all)))))
     ;; Read a string, completing from and restricting to the set of
     ;; all defined commands.  Don't provide any initial input.
     ;; Save the command read on the extended-command history list.
@@ -2410,15 +2416,17 @@ previous element of the minibuffer history in the minibuffer."
 				    (goto-char (1- (minibuffer-prompt-end)))
 				    (current-column))))
 	     (move-to-column old-column))
-	 ;; Put the cursor at the end of the visual line instead of the
-	 ;; logical line, so the next `previous-line-or-history-element'
-	 ;; would move to the previous history element, not to a possible upper
-	 ;; visual line from the end of logical line in `line-move-visual' mode.
-	 (end-of-visual-line)
-	 ;; Since `end-of-visual-line' puts the cursor at the beginning
-	 ;; of the next visual line, move it one char back to the end
-	 ;; of the first visual line (bug#22544).
-	 (unless (eolp) (backward-char 1)))))))
+	 (if (not line-move-visual) ; Handle logical lines (bug#42862)
+	     (end-of-line)
+	   ;; Put the cursor at the end of the visual line instead of the
+	   ;; logical line, so the next `previous-line-or-history-element'
+	   ;; would move to the previous history element, not to a possible upper
+	   ;; visual line from the end of logical line in `line-move-visual' mode.
+	   (end-of-visual-line)
+	   ;; Since `end-of-visual-line' puts the cursor at the beginning
+	   ;; of the next visual line, move it one char back to the end
+	   ;; of the first visual line (bug#22544).
+	   (unless (eolp) (backward-char 1))))))))
 
 (defun next-complete-history-element (n)
   "Get next history element that completes the minibuffer before the point.
@@ -6114,8 +6122,6 @@ Does not set point.  Does nothing if mark ring is empty."
     (pop mark-ring))
   (deactivate-mark))
 
-(define-obsolete-function-alias
-  'exchange-dot-and-mark 'exchange-point-and-mark "23.3")
 (defun exchange-point-and-mark (&optional arg)
   "Put the mark where point is now, and point where the mark is now.
 This command works even when the mark is not active,
@@ -7013,15 +7019,16 @@ rests."
 	    (setq done t)))))))
 
 (defun move-beginning-of-line (arg)
-  "Move point to beginning of current line as displayed.
-\(If there's an image in the line, this disregards newlines
-that are part of the text that the image rests on.)
+  "Move point to visible beginning of current logical line.
+This disregards any invisible newline characters.
 
 With argument ARG not nil or 1, move forward ARG - 1 lines first.
 If point reaches the beginning or end of buffer, it stops there.
 \(But if the buffer doesn't end in a newline, it stops at the
 beginning of the last line.)
-To ignore intangibility, bind `inhibit-point-motion-hooks' to t."
+
+To ignore intangibility, bind `inhibit-point-motion-hooks' to t.
+For motion by visual lines, see `beginning-of-visual-line'."
   (interactive "^p")
   (or arg (setq arg 1))
 
@@ -8400,18 +8407,6 @@ Called with three arguments (BEG END TEXT), it should replace the text
 between BEG and END with TEXT.  Expected to be set buffer-locally
 in the *Completions* buffer.")
 
-(defvar completion-base-size nil
-  "Number of chars before point not involved in completion.
-This is a local variable in the completion list buffer.
-It refers to the chars in the minibuffer if completing in the
-minibuffer, or in `completion-reference-buffer' otherwise.
-Only characters in the field at point are included.
-
-If nil, Emacs determines which part of the tail end of the
-buffer's text is involved in completion by comparing the text
-directly.")
-(make-obsolete-variable 'completion-base-size 'completion-base-position "23.2")
-
 (defun delete-completion-window ()
   "Delete the completion list window.
 Go to the window from which completion was requested."
@@ -8465,7 +8460,6 @@ If EVENT, use EVENT's position to determine the starting position."
   (run-hooks 'mouse-leave-buffer-hook)
   (with-current-buffer (window-buffer (posn-window (event-start event)))
     (let ((buffer completion-reference-buffer)
-          (base-size completion-base-size)
           (base-position completion-base-position)
           (insert-function completion-list-insert-choice-function)
           (choice
@@ -8492,10 +8486,6 @@ If EVENT, use EVENT's position to determine the starting position."
         (choose-completion-string
          choice buffer
          (or base-position
-             (when base-size
-               ;; Someone's using old completion code that doesn't know
-               ;; about base-position yet.
-               (list (+ base-size (field-beginning))))
              ;; If all else fails, just guess.
              (list (choose-completion-guess-base-position choice)))
          insert-function)))))
@@ -8522,10 +8512,6 @@ If EVENT, use EVENT's position to determine the starting position."
         (setq len (1- len))
         (forward-char 1))
       (point))))
-
-(defun choose-completion-delete-max-match (string)
-  (declare (obsolete choose-completion-guess-base-position "23.2"))
-  (delete-region (choose-completion-guess-base-position string) (point)))
 
 (defvar choose-completion-string-functions nil
   "Functions that may override the normal insertion of a completion choice.
@@ -8554,13 +8540,6 @@ back on `completion-list-insert-choice-function' when nil."
   ;; If BUFFER is the minibuffer, exit the minibuffer
   ;; unless it is reading a file name and CHOICE is a directory,
   ;; or completion-no-auto-exit is non-nil.
-
-  ;; Some older code may call us passing `base-size' instead of
-  ;; `base-position'.  It's difficult to make any use of `base-size',
-  ;; so we just ignore it.
-  (unless (consp base-position)
-    (message "Obsolete `base-size' passed to choose-completion-string")
-    (setq base-position nil))
 
   (let* ((buffer (or buffer completion-reference-buffer))
 	 (mini-p (minibufferp buffer)))
@@ -8617,8 +8596,7 @@ Type \\<completion-list-mode-map>\\[choose-completion] in the completion list\
  to select the completion near point.
 Or click to select one with the mouse.
 
-\\{completion-list-mode-map}"
-  (set (make-local-variable 'completion-base-size) nil))
+\\{completion-list-mode-map}")
 
 (defun completion-list-mode-finish ()
   "Finish setup of the completions buffer.
@@ -8655,14 +8633,11 @@ Called from `temp-buffer-show-hook'."
           (if minibuffer-completing-file-name
               (file-name-as-directory
                (expand-file-name
-                (buffer-substring (minibuffer-prompt-end)
-                                  (- (point) (or completion-base-size 0))))))))
+                (buffer-substring (minibuffer-prompt-end) (point)))))))
     (with-current-buffer standard-output
-      (let ((base-size completion-base-size) ;Read before killing localvars.
-            (base-position completion-base-position)
+      (let ((base-position completion-base-position)
             (insert-fun completion-list-insert-choice-function))
         (completion-list-mode)
-        (set (make-local-variable 'completion-base-size) base-size)
         (set (make-local-variable 'completion-base-position) base-position)
         (set (make-local-variable 'completion-list-insert-choice-function)
 	     insert-fun))

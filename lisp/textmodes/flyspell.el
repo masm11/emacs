@@ -398,8 +398,8 @@ like <img alt=\"Some thing.\">."
     (let ((f (get-text-property (1- (point)) 'face)))
       (memq f flyspell-prog-text-faces))))
 
-;; Records the binding of M-TAB in effect before flyspell was activated.
-(defvar flyspell--prev-meta-tab-binding)
+(defvar flyspell--prev-meta-tab-binding nil
+  "Records the binding of M-TAB in effect before flyspell was activated.")
 
 ;;;###autoload
 (defun flyspell-prog-mode ()
@@ -446,19 +446,19 @@ like <img alt=\"Some thing.\">."
   "Minor mode keymap for Flyspell mode--for the whole buffer.")
 
 ;; correct on mouse 3
-(defun flyspell--set-correct-on-mouse-3 (var value)
+(defun flyspell--set-use-mouse-3-for-menu (var value)
   (set-default var value)
   (if value
       (progn (define-key flyspell-mouse-map [mouse-2] nil)
-             (define-key flyspell-mouse-map [mouse-3] 'flyspell-correct-word))
+             (define-key flyspell-mouse-map [down-mouse-3] 'flyspell-correct-word))
     (define-key flyspell-mouse-map [mouse-2] 'flyspell-correct-word)
-    (define-key flyspell-mouse-map [mouse-3] nil)))
+    (define-key flyspell-mouse-map [down-mouse-3] nil)))
 
-(defcustom flyspell-correct-on-mouse-3 nil
+(defcustom flyspell-use-mouse-3-for-menu nil
   "Non-nil means to bind `mouse-3' to `flyspell-correct-word'.
 If this is set, also unbind `mouse-2'."
   :type 'boolean
-  :set 'flyspell--set-correct-on-mouse-3
+  :set 'flyspell--set-use-mouse-3-for-menu
   :version "28.1")
 
 ;; dash character machinery
@@ -531,9 +531,9 @@ in your init file.
   (if flyspell-mode
       (condition-case err
           (progn
-            (when flyspell-correct-on-mouse-3
-              (flyspell--set-correct-on-mouse-3 'flyspell-correct-on-mouse-3 t))
-	    (flyspell-mode-on))
+            (when flyspell-use-mouse-3-for-menu
+              (flyspell--set-use-mouse-3-for-menu 'flyspell-use-mouse-3-for-menu t))
+            (flyspell-mode-on (called-interactively-p 'interactive)))
 	(error (message "Error enabling Flyspell mode:\n%s" (cdr err))
 	       (flyspell-mode -1)))
     (flyspell-mode-off)))
@@ -550,12 +550,9 @@ in your init file.
 
 (custom-add-option 'text-mode-hook 'turn-on-flyspell)
 
-;;*---------------------------------------------------------------------*/
-;;*    flyspell-buffers ...                                             */
-;;*    -------------------------------------------------------------    */
-;;*    For remembering buffers running flyspell                         */
-;;*---------------------------------------------------------------------*/
-(defvar flyspell-buffers nil)
+(defvar flyspell-buffers nil
+  "For remembering buffers running flyspell")
+(make-obsolete-variable 'flyspell-buffers "not used." "28.1")
 
 ;;*---------------------------------------------------------------------*/
 ;;*    flyspell-minibuffer-p ...                                        */
@@ -611,8 +608,12 @@ in your init file.
 ;;*---------------------------------------------------------------------*/
 ;;*    flyspell-mode-on ...                                             */
 ;;*---------------------------------------------------------------------*/
-(defun flyspell-mode-on ()
-  "Turn Flyspell mode on.  Do not use this; use `flyspell-mode' instead."
+(defun flyspell-mode-on (&optional show-msg)
+  "Turn Flyspell mode on.  Do not use this; use `flyspell-mode' instead.
+
+If optional argument SHOW-MSG is non-nil, show a welcome message
+if `flyspell-issue-message-flag' and `flyspell-issue-welcome-flag'
+are both non-nil."
   (ispell-set-spellchecker-params) ; Initialize variables and dicts alists
   (setq ispell-highlight-face 'flyspell-incorrect)
   ;; local dictionaries setup
@@ -644,15 +645,17 @@ in your init file.
 	(setq flyspell-generic-check-word-predicate mode-predicate)))
   ;; the welcome message
   (if (and flyspell-issue-message-flag
-	   flyspell-issue-welcome-flag
-	   (called-interactively-p 'interactive))
-      (let ((binding (where-is-internal 'flyspell-auto-correct-word
-					nil 'non-ascii)))
-	(message "%s"
-	 (if binding
-	     (format "Welcome to flyspell. Use %s or Mouse-2 to correct words."
-		     (key-description binding))
-	   "Welcome to flyspell. Use Mouse-2 to correct words.")))))
+           flyspell-issue-welcome-flag
+           show-msg)
+      (let* ((binding (where-is-internal 'flyspell-auto-correct-word
+                                         nil 'non-ascii))
+             (mouse-button (if flyspell-use-mouse-3-for-menu
+                               "Mouse-3" "Mouse-2")))
+        (message (format-message
+                  "Welcome to Flyspell. Use %s to correct words."
+                  (if binding
+                      (format "`%s' or `%s'" (key-description binding) mouse-button)
+                    (format "`%s'" mouse-button)))))))
 
 ;;*---------------------------------------------------------------------*/
 ;;*    flyspell-delay-commands ...                                      */
@@ -1802,7 +1805,9 @@ for the overlay."
     (overlay-put overlay 'mouse-face mouse-face)
     (overlay-put overlay 'flyspell-overlay t)
     (overlay-put overlay 'evaporate t)
-    (overlay-put overlay 'help-echo "mouse-2: correct word at point")
+    (overlay-put overlay 'help-echo (concat (if flyspell-use-mouse-3-for-menu
+                                                "mouse-3"
+                                              "mouse-2") ": correct word at point"))
     ;; If misspelled text has a 'keymap' property, let that remain in
     ;; effect for the bindings that flyspell-mouse-map doesn't override.
     (set-keymap-parent flyspell-mouse-map (get-char-property beg 'keymap))
