@@ -1252,7 +1252,7 @@ The following usages are expected:
 
 `dbus-method-error-internal':
   (dbus-message-internal
-    dbus-message-type-error BUS SERVICE SERIAL &rest ARGS)
+    dbus-message-type-error BUS SERVICE SERIAL ERROR-NAME &rest ARGS)
 
 usage: (dbus-message-internal &rest REST)  */)
   (ptrdiff_t nargs, Lisp_Object *args)
@@ -1261,6 +1261,7 @@ usage: (dbus-message-internal &rest REST)  */)
   Lisp_Object path = Qnil;
   Lisp_Object interface = Qnil;
   Lisp_Object member = Qnil;
+  Lisp_Object error_name = Qnil;
   Lisp_Object result;
   DBusConnection *connection;
   DBusMessage *dmessage;
@@ -1298,7 +1299,9 @@ usage: (dbus-message-internal &rest REST)  */)
   else /* DBUS_MESSAGE_TYPE_METHOD_RETURN, DBUS_MESSAGE_TYPE_ERROR  */
     {
       serial = xd_extract_unsigned (args[3], TYPE_MAXIMUM (dbus_uint32_t));
-      count = 4;
+      if (mtype == DBUS_MESSAGE_TYPE_ERROR)
+	error_name = args[4];
+      count = (mtype == DBUS_MESSAGE_TYPE_ERROR) ? 5 : 4;
     }
 
   /* Check parameters.  */
@@ -1341,13 +1344,22 @@ usage: (dbus-message-internal &rest REST)  */)
 			XD_OBJECT_TO_STRING (interface),
 			XD_OBJECT_TO_STRING (member));
       break;
-    default: /* DBUS_MESSAGE_TYPE_METHOD_RETURN, DBUS_MESSAGE_TYPE_ERROR  */
+    case DBUS_MESSAGE_TYPE_METHOD_RETURN:
       ui_serial = serial;
       XD_DEBUG_MESSAGE ("%s %s %s %u",
 			XD_MESSAGE_TYPE_TO_STRING (mtype),
 			XD_OBJECT_TO_STRING (bus),
 			XD_OBJECT_TO_STRING (service),
 			ui_serial);
+       break;
+    default: /* DBUS_MESSAGE_TYPE_ERROR  */
+      ui_serial = serial;
+      XD_DEBUG_MESSAGE ("%s %s %s %u %s",
+			XD_MESSAGE_TYPE_TO_STRING (mtype),
+			XD_OBJECT_TO_STRING (bus),
+			XD_OBJECT_TO_STRING (service),
+			ui_serial,
+			XD_OBJECT_TO_STRING (error_name));
     }
 
   /* Retrieve bus address.  */
@@ -1406,7 +1418,7 @@ usage: (dbus-message-internal &rest REST)  */)
 	XD_SIGNAL1 (build_string ("Unable to create a return message"));
 
       if ((mtype == DBUS_MESSAGE_TYPE_ERROR)
-	  && (!dbus_message_set_error_name (dmessage, DBUS_ERROR_FAILED)))
+	  && (!dbus_message_set_error_name (dmessage, SSDATA (error_name))))
 	XD_SIGNAL1 (build_string ("Unable to create an error message"));
     }
 
@@ -1496,7 +1508,7 @@ xd_read_message_1 (DBusConnection *connection, Lisp_Object bus)
   int mtype;
   dbus_uint32_t serial;
   unsigned int ui_serial;
-  const char *uname, *path, *interface, *member;
+  const char *uname, *path, *interface, *member, *error_name;
 
   dmessage = dbus_connection_pop_message (connection);
 
@@ -1532,10 +1544,11 @@ xd_read_message_1 (DBusConnection *connection, Lisp_Object bus)
   path = dbus_message_get_path (dmessage);
   interface = dbus_message_get_interface (dmessage);
   member = dbus_message_get_member (dmessage);
+  error_name =dbus_message_get_error_name (dmessage);
 
-  XD_DEBUG_MESSAGE ("Event received: %s %u %s %s %s %s %s",
+  XD_DEBUG_MESSAGE ("Event received: %s %u %s %s %s %s %s %s",
 		    XD_MESSAGE_TYPE_TO_STRING (mtype),
-		    ui_serial, uname, path, interface, member,
+		    ui_serial, uname, path, interface, member, error_name,
 		    XD_OBJECT_TO_STRING (args));
 
   if (mtype == DBUS_MESSAGE_TYPE_INVALID)
@@ -1559,7 +1572,9 @@ xd_read_message_1 (DBusConnection *connection, Lisp_Object bus)
       EVENT_INIT (event);
       event.kind = DBUS_EVENT;
       event.frame_or_window = Qnil;
-      event.arg = Fcons (value, args);
+      event.arg = Fcons (value,
+			 (mtype == DBUS_MESSAGE_TYPE_ERROR)
+			 ? (Fcons (build_string (error_name), args)) : args);
     }
 
   else /* DBUS_MESSAGE_TYPE_METHOD_CALL, DBUS_MESSAGE_TYPE_SIGNAL.  */
@@ -1732,7 +1747,8 @@ syms_of_dbusbind (void)
   DEFSYM (QCstruct, ":struct");
   DEFSYM (QCdict_entry, ":dict-entry");
 
-  /* Lisp symbols of objects in `dbus-registered-objects-table'.  */
+  /* Lisp symbols of objects in `dbus-registered-objects-table'.
+     `:property', which does exist there as well, is not used here.  */
   DEFSYM (QCserial, ":serial");
   DEFSYM (QCmethod, ":method");
   DEFSYM (QCsignal, ":signal");
@@ -1808,10 +1824,11 @@ SERVICE PATH OBJECT [RULE]) ...).  SERVICE is the service name as
 registered, UNAME is the corresponding unique name.  In case of
 registered methods and properties, UNAME is nil.  PATH is the object
 path of the sending object.  All of them can be nil, which means a
-wildcard then.  OBJECT is either the handler to be called when a D-Bus
-message, which matches the key criteria, arrives (TYPE `:method' and
-`:signal'), or a cons cell containing the value of the property (TYPE
-`:property').
+wildcard then.
+
+OBJECT is either the handler to be called when a D-Bus message, which
+matches the key criteria, arrives (TYPE `:method' and `:signal'), or a
+list (ACCESS EMITS-SIGNAL SIGNATURE VALUE) for TYPE `:property'.
 
 For entries of type `:signal', there is also a fifth element RULE,
 which keeps the match string the signal is registered with.

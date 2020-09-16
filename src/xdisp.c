@@ -9532,7 +9532,7 @@ move_it_in_display_line_to (struct it *it,
 			 we can't wrap here.  Therefore, wrap_it
 			 (previously found wrap-point) _is_ relevant
 			 in that case.  */
-		      && !(moved_forward && char_can_wrap_before (it)))
+		      && (!moved_forward || char_can_wrap_before (it)))
 		    {
 		      /* If we've found TO_X, go back there, as we now
 			 know the last word fits on this screen line.  */
@@ -19308,20 +19308,21 @@ try_window (Lisp_Object window, struct text_pos pos, int flags)
   if ((flags & TRY_WINDOW_CHECK_MARGINS)
       && !MINI_WINDOW_P (w))
     {
-      int this_scroll_margin = window_scroll_margin (w, MARGIN_IN_PIXELS);
+      int top_scroll_margin = window_scroll_margin (w, MARGIN_IN_PIXELS);
+      int bot_scroll_margin = top_scroll_margin;
       if (window_wants_header_line (w))
-	this_scroll_margin += CURRENT_HEADER_LINE_HEIGHT (w);
+	top_scroll_margin += CURRENT_HEADER_LINE_HEIGHT (w);
       start_display (&it, w, pos);
 
       if ((w->cursor.y >= 0	/* not vscrolled */
-	   && w->cursor.y < this_scroll_margin
+	   && w->cursor.y < top_scroll_margin
 	   && CHARPOS (pos) > BEGV)
 	  /* rms: considering make_cursor_line_fully_visible_p here
 	     seems to give wrong results.  We don't want to recenter
 	     when the last line is partly visible, we want to allow
 	     that case to be handled in the usual way.  */
 	  || w->cursor.y > (it.last_visible_y - partial_line_height (&it)
-			    - this_scroll_margin - 1))
+			    - bot_scroll_margin - 1))
 	{
 	  w->cursor.vpos = -1;
 	  clear_glyph_matrix (w->desired_matrix);
@@ -25645,8 +25646,10 @@ display_mode_element (struct it *it, int depth, int field_width, int precision,
 		    /* Non-ASCII characters in SPEC should cause mode-line
 		       element be displayed as a multibyte string.  */
 		    ptrdiff_t nbytes = strlen (spec);
-		    if (multibyte_chars_in_text ((const unsigned char *)spec,
-						 nbytes) != nbytes)
+		    ptrdiff_t nchars, mb_nbytes;
+		    parse_str_as_multibyte ((const unsigned char *)spec, nbytes,
+					    &nchars, &mb_nbytes);
+		    if (!(nbytes == nchars || nbytes != mb_nbytes))
 		      multibyte = true;
 
 		    switch (mode_line_target)
@@ -34845,8 +34848,7 @@ and is used only on frames for which no explicit name has been set
      Oracle Developer Studio 12.6.  */
   Lisp_Object icon_title_name_format
     = pure_list (empty_unibyte_string,
-		 intern_c_string ("invocation-name"),
-		 build_pure_c_string ("@"),
+		 build_pure_c_string ("%b - GNU Emacs at "),
 		 intern_c_string ("system-name"));
   Vicon_title_format
     = Vframe_title_format

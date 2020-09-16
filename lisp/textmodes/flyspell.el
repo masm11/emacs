@@ -387,9 +387,13 @@ like <img alt=\"Some thing.\">."
 ;;*---------------------------------------------------------------------*/
 ;;*    Programming mode                                                 */
 ;;*---------------------------------------------------------------------*/
-(defvar flyspell-prog-text-faces
+(defcustom flyspell-prog-text-faces
   '(font-lock-string-face font-lock-comment-face font-lock-doc-face)
-  "Faces corresponding to text in programming-mode buffers.")
+  "Faces corresponding to text in programming-mode buffers."
+  :type '(set (const font-lock-string-face)
+              (const font-lock-comment-face)
+              (const font-lock-doc-face))
+  :version "28.1")
 
 (defun flyspell-generic-progmode-verify ()
   "Used for `flyspell-generic-check-word-predicate' in programming modes."
@@ -1904,7 +1908,7 @@ before point that's highlighted as misspelled."
 	  (while (and (setq pos (previous-overlay-change pos))
 		      (not (= pos pos1)))
 	    (setq pos1 pos)
-	    (if (> pos (point-min))
+	    (if (>= pos (point-min))
 		(progn
 		  (setq ovs (overlays-at pos))
 		  (while (consp ovs)

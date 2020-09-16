@@ -286,20 +286,10 @@ Interactively, prompt for LIBRARY using the one at or near point."
 A library name is the filename of an Emacs Lisp library located
 in a directory under `load-path' (or `find-function-source-path',
 if non-nil)."
-  (let* ((suffix-regexp (mapconcat
-                         (lambda (suffix)
-                           (concat (regexp-quote suffix) "\\'"))
-                         (find-library-suffixes)
-                         "\\|"))
-         (table (cl-loop for dir in (or find-function-source-path load-path)
-                         for dir-or-default = (or dir default-directory)
-                         when (file-readable-p dir-or-default)
-                         append (mapcar
-                                 (lambda (file)
-                                   (replace-regexp-in-string suffix-regexp
-                                                             "" file))
-                                 (directory-files dir-or-default nil
-                                                  suffix-regexp))))
+  (let* ((dirs (or find-function-source-path load-path))
+         (suffixes (find-library-suffixes))
+         (table (apply-partially 'locate-file-completion-table
+                                 dirs suffixes))
          (def (if (eq (function-called-at-point) 'require)
                   ;; `function-called-at-point' may return 'require
                   ;; with `point' anywhere on this line.  So wrap the
@@ -315,9 +305,7 @@ if non-nil)."
                 (thing-at-point 'symbol))))
     (when (and def (not (test-completion def table)))
       (setq def nil))
-    (completing-read (if def
-                         (format "Library name (default %s): " def)
-                       "Library name: ")
+    (completing-read (format-prompt "Library name" def)
                      table nil nil nil nil def)))
 
 ;;;###autoload
@@ -485,12 +473,10 @@ otherwise uses `variable-at-point'."
          (prompt-type (cdr (assq type '((nil . "function")
                                         (defvar . "variable")
                                         (defface . "face")))))
-         (prompt (concat "Find " prompt-type
-                         (and symb (format " (default %s)" symb))
-                         ": "))
          (enable-recursive-minibuffers t))
     (list (intern (completing-read
-                   prompt obarray predicate
+                   (format-prompt "Find %s" symb prompt-type)
+                   obarray predicate
                    t nil nil (and symb (symbol-name symb)))))))
 
 (defun find-function-do-it (symbol type switch-fn)

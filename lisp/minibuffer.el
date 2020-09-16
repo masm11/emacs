@@ -1065,10 +1065,16 @@ in the last `cdr'."
 (defun completion--replace (beg end newtext)
   "Replace the buffer text between BEG and END with NEWTEXT.
 Moves point to the end of the new text."
-  ;; The properties on `newtext' include things like
-  ;; completions-first-difference, which we don't want to include
-  ;; upon insertion.
-  (set-text-properties 0 (length newtext) nil newtext)
+  ;; The properties on `newtext' include things like the
+  ;; `completions-first-difference' face, which we don't want to
+  ;; include upon insertion.
+  (if minibuffer-allow-text-properties
+      ;; If we're preserving properties, then just remove the faces
+      ;; and other properties added by the completion machinery.
+      (remove-text-properties 0 (length newtext) '(face completion-score)
+                              newtext)
+    ;; Remove all text properties.
+    (set-text-properties 0 (length newtext) nil newtext))
   ;; Maybe this should be in subr.el.
   ;; You'd think this is trivial to do, but details matter if you want
   ;; to keep markers "at the right place" and be robust in the face of
@@ -1119,7 +1125,6 @@ completion candidates than this number."
 (defvar-local completion-all-sorted-completions nil)
 (defvar-local completion--all-sorted-completions-location nil)
 (defvar completion-cycling nil)      ;Function that takes down the cycling map.
-(defvar completion-content-when-empty nil)
 
 (defvar completion-fail-discreetly nil
   "If non-nil, stay quiet when there  is no match.")
@@ -1504,13 +1509,8 @@ If `minibuffer-completion-confirm' is `confirm-after-completion',
 COMPLETION-FUNCTION is called if the current buffer's content does not
 appear to be a match."
     (cond
-     ;; Allow user to specify null string.  In the case that
-     ;; `completion-content-when-empty' is set, use that instead.
-     ((= beg end)
-      (when completion-content-when-empty
-        (completion--replace beg end completion-content-when-empty))
-      (funcall exit-function))
-
+     ;; Allow user to specify null string
+   ((= beg end) (funcall exit-function))
      ((test-completion (buffer-substring beg end)
                        minibuffer-completion-table
                        minibuffer-completion-predicate)
@@ -3865,6 +3865,9 @@ FORMAT-ARGS is non-nil, PROMPT is used as a format control
 string, and FORMAT-ARGS are the arguments to be substituted into
 it.  See `format' for details.
 
+If DEFAULT is a list, the first element is used as the default.
+If not, the element is used as is.
+
 If DEFAULT is nil, no \"default value\" string is included in the
 return value."
   (concat
@@ -3872,7 +3875,10 @@ return value."
        prompt
      (apply #'format prompt format-args))
    (and default
-        (format minibuffer-default-prompt-format default))
+        (format minibuffer-default-prompt-format
+                (if (consp default)
+                    (car default)
+                  default)))
    ": "))
 
 (provide 'minibuffer)

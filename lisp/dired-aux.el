@@ -153,10 +153,8 @@ the string of command switches used as the third argument of `diff'."
 	  (lambda ()
 	    (set (make-local-variable 'minibuffer-default-add-function) nil)
 	    (setq minibuffer-default defaults))
-	(read-file-name
-	 (format "Diff %s with%s: " current
-		 (if default (format " (default %s)" default) ""))
-	 target-dir default t))
+	(read-file-name (format-prompt "Diff %s with" default current)
+	                target-dir default t))
       (if current-prefix-arg
 	  (read-string "Options for diff: "
 		       (if (stringp diff-switches)
@@ -1549,16 +1547,12 @@ files matching `dired-omit-regexp'."
 
 ;;;###autoload
 (defun dired-remove-file (file)
+  "Remove entry FILE on each dired buffer.
+Note this doesn't delete FILE in the file system.
+See `dired-delete-file' in case you wish that."
   (dired-fun-in-all-buffers
    (file-name-directory file) (file-name-nondirectory file)
    #'dired-remove-entry file))
-
-(defun dired-remove-entry (file)
-  (save-excursion
-    (and (dired-goto-file file)
-	 (let (buffer-read-only)
-	   (delete-region (progn (beginning-of-line) (point))
-			  (line-beginning-position 2))))))
 
 ;;;###autoload
 (defun dired-relist-file (file)
@@ -1676,6 +1670,9 @@ rename them using `vc-rename-file'."
 
 ;;;###autoload
 (defun dired-rename-file (file newname ok-if-already-exists)
+  "Rename FILE to NEWNAME.
+Signal a `file-already-exists' error if a file NEWNAME already exists
+unless OK-IF-ALREADY-EXISTS is non-nil."
   (dired-handle-overwrite newname)
   (dired-maybe-create-dirs (file-name-directory newname))
   (if (and dired-vc-rename-file
@@ -1690,7 +1687,8 @@ rename them using `vc-rename-file'."
 	 (set-visited-file-name newname nil t)))
   (dired-remove-file file)
   ;; See if it's an inserted subdir, and rename that, too.
-  (dired-rename-subdir file newname))
+  (when (file-directory-p file)
+    (dired-rename-subdir file newname)))
 
 (defun dired-rename-subdir (from-dir to-dir)
   (setq from-dir (file-name-as-directory from-dir)
@@ -2720,12 +2718,6 @@ When called interactively and not on a subdir line, go to this subdir's line."
 	   (if (dired-get-subdir) 1 0))))
   (dired-next-subdir (- arg) no-error-if-not-found no-skip))
 
-(defun dired-subdir-min ()
-  (save-excursion
-    (if (not (dired-prev-subdir 0 t t))
-	(error "Not in a subdir!")
-      (point))))
-
 ;;;###autoload
 (defun dired-goto-subdir (dir)
   "Go to end of header line of DIR in this dired buffer.
@@ -2817,15 +2809,6 @@ Lower levels are unaffected."
       (error "At the bottom"))))
 
 ;;; hiding
-
-(defun dired-unhide-subdir ()
-  (with-silent-modifications
-    (dired--unhide (dired-subdir-min) (dired-subdir-max))))
-
-(defun dired-subdir-hidden-p (dir)
-  (save-excursion
-    (dired-goto-subdir dir)
-    (dired--hidden-p)))
 
 ;;;###autoload
 (defun dired-hide-subdir (arg)
