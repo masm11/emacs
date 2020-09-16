@@ -58,6 +58,12 @@ This returns `"GdkWaylandDisplay"` for Wayland, or `"GdkX11Display"` for X11.
 
 Note: Segmentation fault may occur on multiple display environment.
 
+## Child Frames
+
+I reimplemented child frames to resolve these issues: #46, #48, and #49.
+
+In this new version, child frames don't extend beyond the parent frame.
+
 ## Instead of xrdb
 
 X has the resource database, and you could store initial default values into it.
@@ -130,17 +136,17 @@ in `~/.emacs`:
 ## My Environment
 
 - archlinux
-- gtk+ 3.24.22
-- glib2 2.64.4
-- gcc 10.1.0
+- gtk+ 3.24.23
+- glib2 2.64.5
+- gcc 10.2.0
 - wayland 1.18.0
 - wayland-protocols 1.20
 - cairo 1.17.2
 - freetype2 2.10.2
-- imagemagick 7.0.10.26
+- imagemagick 7.0.10.29
 - ibus 1.5.22
 - mozc 2.23.2815.102
-- wayfire 167c3c35
+- wayfire 0.5.0
 
 ## Notice
 
