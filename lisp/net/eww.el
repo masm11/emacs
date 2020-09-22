@@ -141,7 +141,7 @@ this should be a list where the first item is the program, and
 the rest are the arguments."
   :version "28.1"
   :type '(choice (const :tag "Use `url-retrieve'" nil)
-                 (list string)))
+                 (repeat string)))
 
 (defcustom eww-use-external-browser-for-content-type
   "\\`\\(video/\\|audio/\\|application/ogg\\)"
@@ -1634,7 +1634,7 @@ See URL `https://developer.mozilla.org/en-US/docs/Web/HTML/Element/Input'.")
 	  (cond
 	   ((member (plist-get input :type) '("checkbox" "radio"))
 	    (when (plist-get input :checked)
-	      (push (cons name (plist-get input :value))
+              (push (cons name (or (plist-get input :value) "on"))
 		    values)))
 	   ((equal (plist-get input :type) "file")
             (when-let ((file (plist-get input :filename)))
