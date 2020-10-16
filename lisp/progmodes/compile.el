@@ -33,6 +33,7 @@
 (eval-when-compile (require 'cl-lib))
 (require 'tool-bar)
 (require 'comint)
+(require 'text-property-search)
 
 (defgroup compilation nil
   "Run compiler as inferior of Emacs, parse error messages."
@@ -64,7 +65,8 @@ If nil, use Emacs default."
 If the replacement is nil, the file will not be considered an
 error after all.  If not nil, it should be a regexp replacement
 string."
-  :type '(repeat (list regexp string))
+  :type '(repeat (list regexp (choice (const :tag "No replacement" nil)
+                                      string)))
   :version "27.1")
 
 (defvar compilation-filter-hook nil
@@ -742,6 +744,18 @@ file might define a malicious `compile-command' as a file local
 variable, and you might not notice.  Therefore, `compile-command'
 is considered unsafe if this variable is nil."
   :type 'boolean)
+
+(defcustom compilation-search-all-directories t
+  "Whether further upward directories should be used when searching a file.
+When doing a parallel build, several files from different
+directories can be compiled at the same time.  This makes it
+difficult to determine the base directory for a relative file
+name in a compiler error or warning.  If this variable is
+non-nil, instead of just relying on the previous directory change
+in the compilation buffer, all other directories further upwards
+will be used as well."
+  :type 'boolean
+  :version "28.1")
 
 ;;;###autoload
 (defcustom compilation-ask-about-save t
@@ -1572,7 +1586,14 @@ to `compilation-error-regexp-alist' if RULES is nil."
       ;; grep.el) don't need to flush-parse when they modify the buffer
       ;; in a way that impacts buffer positions but does not require
       ;; re-parsing.
-      (setq compilation--parsed (point-min-marker)))
+      (setq compilation--parsed
+            (set-marker (make-marker)
+                        (save-excursion
+                          (goto-char (point-min))
+                          (text-property-search-forward 'compilation-header-end)
+                          ;; If we have no end marker, this will be
+                          ;; `point-min' still.
+                          (point)))))
     (when (< compilation--parsed limit)
       (let ((start (max compilation--parsed (point-min))))
         (move-marker compilation--parsed limit)
@@ -1817,6 +1838,9 @@ Returns the compilation buffer created."
 			mode-name
 			(substring (current-time-string) 0 19))
 		command "\n")
+        ;; Mark the end of the header so that we don't interpret
+        ;; anything in it as an error.
+        (put-text-property (1- (point)) (point) 'compilation-header-end t)
 	(setq thisdir default-directory))
       (set-buffer-modified-p nil))
     ;; Pop up the compilation buffer.
@@ -2904,6 +2928,28 @@ attempts to find a file whose name is produced by (format FMT FILENAME)."
                           (find-file-noselect name))
               fmts (cdr fmts)))
       (setq dirs (cdr dirs)))
+    ;; If we haven't found it, this might be a parallel build.
+    ;; Search the directories further up the buffer.
+    (when (and (null buffer)
+               compilation-search-all-directories)
+      (with-current-buffer (marker-buffer marker)
+        (save-excursion
+          (goto-char (marker-position marker))
+          (when-let ((prev (compilation--previous-directory (point))))
+            (goto-char prev))
+          (setq dirs (cdr (or (get-text-property
+                               (1- (point)) 'compilation-directory)
+                              (get-text-property
+                               (point) 'compilation-directory))))))
+      (while (and dirs (null buffer))
+        (setq thisdir (car dirs)
+              fmts formats)
+        (while (and fmts (null buffer))
+          (setq name (expand-file-name (format (car fmts) filename) thisdir)
+                buffer (and (file-exists-p name)
+                            (find-file-noselect name))
+                fmts (cdr fmts)))
+        (setq dirs (cdr dirs))))
     (while (null buffer)    ;Repeat until the user selects an existing file.
       ;; The file doesn't exist.  Ask the user where to find it.
       (save-excursion            ;This save-excursion is probably not right.

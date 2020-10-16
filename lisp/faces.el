@@ -1771,7 +1771,7 @@ If FRAME is nil, that stands for the selected frame."
 (defun defined-colors-with-face-attributes (&optional frame)
   "Return a list of colors supported for a particular frame.
 See `defined-colors' for arguments and return value. In contrast
-to `define-colors' the elements of the returned list are color
+to `defined-colors' the elements of the returned list are color
 strings with text properties, that make the color names render
 with the color they represent as background color."
   (mapcar
@@ -2639,9 +2639,9 @@ Use the face `mode-line-highlight' for features that can be selected."
   :version "21.1"
   :group 'basic-faces)
 
-(defface header-line-highlight '((t :inherit highlight))
+(defface header-line-highlight '((t :inherit mode-line-highlight))
   "Basic header line face for highlighting."
-  :version "26.1"
+  :version "28.1"
   :group 'basic-faces)
 
 (defface vertical-border

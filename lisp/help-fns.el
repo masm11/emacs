@@ -40,8 +40,8 @@
 (defvar help-fns-describe-function-functions nil
   "List of functions to run in help buffer in `describe-function'.
 Those functions will be run after the header line and argument
-list was inserted, and before the documentation will be inserted.
-The functions will receive the function name as argument.
+list was inserted, and before the documentation is inserted.
+The functions will be called with one argument: the function's symbol.
 They can assume that a newline was output just before they were called,
 and they should terminate any of their own output with a newline.
 By convention they should indent their output by 2 spaces.")
@@ -622,7 +622,7 @@ FILE is the file where FUNCTION was probably defined."
   ;; of the *packages* in which the function is defined.
   (let* ((name (symbol-name symbol))
          (re (concat "\\_<" (regexp-quote name) "\\_>"))
-         (news (directory-files data-directory t "\\`NEWS\\.[1-9]"))
+         (news (directory-files data-directory t "\\`NEWS\\($\\|\\.\\)"))
          (place nil)
          (first nil))
     (with-temp-buffer
@@ -658,6 +658,39 @@ FILE is the file where FUNCTION was probably defined."
       (with-current-buffer standard-output
         (insert (format "  Probably introduced at or before Emacs version %s.\n"
                         first))))))
+
+(declare-function shortdoc-display-group "shortdoc")
+(declare-function shortdoc-function-groups "shortdoc")
+
+(add-hook 'help-fns-describe-function-functions
+          #'help-fns--mention-shortdoc-groups)
+(defun help-fns--mention-shortdoc-groups (object)
+  (require 'shortdoc)
+  (when-let ((groups (and (symbolp object)
+                          (shortdoc-function-groups object))))
+    (let ((start (point))
+          (times 0))
+      (with-current-buffer standard-output
+        (insert "  Other relevant functions are documented in the ")
+        (mapc
+         (lambda (group)
+           (when (> times 0)
+             (insert (if (= times (1- (length groups)))
+                         " and "
+                       ", ")))
+           (setq times (1+ times))
+           (insert-text-button
+            (symbol-name group)
+            'action (lambda (_)
+                      (shortdoc-display-group group))))
+         groups)
+        (insert (if (= (length groups) 1)
+                    " group.\n"
+                  " groups.\n")))
+      (save-restriction
+        (narrow-to-region start (point))
+        (fill-region-as-paragraph (point-min) (point-max))
+        (goto-char (point-max))))))
 
 (defun help-fns-short-filename (filename)
   (let* ((abbrev (abbreviate-file-name filename))

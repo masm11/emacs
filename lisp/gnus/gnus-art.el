@@ -274,6 +274,7 @@ This can also be a list of the above values."
 If it is a string, the command will be executed in a sub-shell
 asynchronously.  The compressed face will be piped to this command."
   :type '(choice string
+		 (const :tag "None" nil)
 		 (function-item gnus-display-x-face-in-from)
 		 function)
   :version "27.1"
@@ -7091,7 +7092,11 @@ If given a prefix, show the hidden text instead."
 					      gnus-summary-buffer)
 		    (when gnus-keep-backlog
 		      (gnus-backlog-enter-article
-		       group article (current-buffer))))
+		       group article (current-buffer)))
+		    (when (and gnus-agent
+			       gnus-agent-eagerly-store-articles
+			       (gnus-agent-group-covered-p group))
+		      (gnus-agent-store-article article group)))
 		  (setq result 'article))
 		 (methods
 		  (setq gnus-override-method (pop methods)))

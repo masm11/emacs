@@ -593,7 +593,7 @@ This variable is initialized by the `artist-make-prev-next-op-alist' function.")
     (define-key map "\C-c\C-a\C-b" 'artist-submit-bug-report)
     (define-key map [menu-bar artist] (cons "Artist" artist-menu-map))
     map)
-  "Keymap for `artist-minor-mode'.")
+  "Keymap for `artist-mode'.")
 
 (defvar artist-replacement-table (make-vector 256 0)
   "Replacement table for `artist-replace-char'.")
@@ -1958,7 +1958,8 @@ Return a list (RETURN-CODE STDOUT STDERR)."
 
 (defsubst artist-get-char-at-xy (x y)
   "Return the character found at column X, row Y.
-Also updates the variables `artist-draw-min-y' and `artist-draw-max-y'."
+Also updates the variables `artist-draw-region-min-y' and
+`artist-draw-region-max-y'."
   (artist-move-to-xy x y)
   (let ((curr-y (artist-current-line)))
     (setq artist-draw-region-min-y (min curr-y artist-draw-region-min-y))
@@ -4942,6 +4943,12 @@ If optional argument STATE is positive, turn borders on."
       (cons (+ window-x window-start-x)
 	    (+ window-y window-start-y))))
 
+(defun artist--adjust-x (x)
+  "Adjust the X position wrt. `display-line-numbers-mode'."
+  (let ((adjust (line-number-display-width)))
+    (if (= adjust 0)
+        x
+      (- x adjust 2))))
 
 (defun artist-mouse-draw-continously (ev)
   "Generic function for shapes that require 1 point as input.
@@ -4963,7 +4970,7 @@ The event, EV, is the mouse event."
 	 (ev-start     (event-start ev))
 	 (initial-win  (posn-window ev-start))
 	 (ev-start-pos (artist-coord-win-to-buf (posn-col-row ev-start)))
-	 (x1           (car ev-start-pos))
+	 (x1           (artist--adjust-x (car ev-start-pos)))
 	 (y1           (cdr ev-start-pos))
 	 (shape)
 	 (timer))
@@ -4980,7 +4987,7 @@ The event, EV, is the mouse event."
                      (member 'down (event-modifiers ev)))
             (setq ev-start-pos (artist-coord-win-to-buf
                                 (posn-col-row (event-start ev))))
-            (setq x1 (car ev-start-pos))
+            (setq x1 (artist--adjust-x (car ev-start-pos)))
             (setq y1 (cdr ev-start-pos))
 
             ;; Cancel previous timer
@@ -5060,7 +5067,7 @@ The event, EV, is the mouse event."
 	 (ev-start     (event-start ev))
 	 (initial-win  (posn-window ev-start))
 	 (ev-start-pos (artist-coord-win-to-buf (posn-col-row ev-start)))
-	 (x1-last      (car ev-start-pos))
+	 (x1-last      (artist--adjust-x (car ev-start-pos)))
 	 (y1-last      (cdr ev-start-pos))
 	 (x2           x1-last)
 	 (y2           y1-last)
@@ -5152,7 +5159,7 @@ The event, EV, is the mouse event."
 	      ;;
 	      (setq ev-start-pos (artist-coord-win-to-buf
 				  (posn-col-row (event-start ev))))
-	      (setq x2 (car ev-start-pos))
+	      (setq x2 (artist--adjust-x (car ev-start-pos)))
 	      (setq y2 (cdr ev-start-pos))
 
 	      ;; Draw the new shape (if not rubber-banding, place both marks)
@@ -5179,7 +5186,7 @@ The event, EV, is the mouse event."
 	  ;; set x2 and y2
 	  (setq ev-start-pos (artist-coord-win-to-buf
 			      (posn-col-row (event-start ev))))
-	  (setq x2 (car ev-start-pos))
+	  (setq x2 (artist--adjust-x (car ev-start-pos)))
 	  (setq y2 (cdr ev-start-pos))
 
 	  ;; First undraw last shape
@@ -5264,7 +5271,7 @@ Operation is done once.  The event, EV, is the mouse event."
 	 (arrow-set-fn (artist-go-get-arrow-set-fn-from-symbol op))
 	 (ev-start     (event-start ev))
 	 (ev-start-pos (artist-coord-win-to-buf (posn-col-row ev-start)))
-	 (x1           (car ev-start-pos))
+	 (x1           (artist--adjust-x (car ev-start-pos)))
 	 (y1           (cdr  ev-start-pos)))
     (select-window (posn-window ev-start))
     (artist-funcall init-fn x1 y1)
@@ -5298,7 +5305,7 @@ The event, EV, is the mouse event."
 	 (ev-start     (event-start ev))
 	 (initial-win  (posn-window ev-start))
 	 (ev-start-pos (artist-coord-win-to-buf (posn-col-row ev-start)))
-	 (x1           (car ev-start-pos))
+	 (x1           (artist--adjust-x (car ev-start-pos)))
 	 (y1           (cdr ev-start-pos))
 	 (x2)
 	 (y2)
@@ -5312,7 +5319,7 @@ The event, EV, is the mouse event."
 		 (member 'down (event-modifiers ev)))
 	(setq ev-start-pos (artist-coord-win-to-buf
 			    (posn-col-row (event-start ev))))
-	(setq x2 (car ev-start-pos))
+	(setq x2 (artist--adjust-x (car ev-start-pos)))
 	(setq y2 (cdr ev-start-pos))
 
 	(if (not (eq initial-win (posn-window (event-start ev))))
@@ -5575,8 +5582,8 @@ The event, EV, is the mouse event."
 ;;         - artist-key-set-point-xxx for setting a point in the
 ;;           mode, to be called from `artist-key-set-point-common'.
 ;;
-;;         - artist-key-do-continuously-xxx to be called from
-;;           `artist-key-do-continuously-common' whenever the user
+;;         - artist-key-do-continously-xxx to be called from
+;;           `artist-key-do-continously-common' whenever the user
 ;;           moves around.
 ;;
 ;;         As for the artist-mouse-draw-xxx, these two functions must

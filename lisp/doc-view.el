@@ -24,8 +24,8 @@
 
 ;; doc-view.el requires GNU Emacs 22.1 or newer.  You also need Ghostscript,
 ;; `dvipdf' (comes with Ghostscript) or `dvipdfm' (comes with teTeX or TeXLive)
-;; and `pdftotext', which comes with xpdf (http://www.foolabs.com/xpdf/) or
-;; poppler (http://poppler.freedesktop.org/).
+;; and `pdftotext', which comes with xpdf (https://www.foolabs.com/xpdf/) or
+;; poppler (https://poppler.freedesktop.org/).
 
 ;;; Commentary:
 
@@ -514,7 +514,7 @@ Typically \"page-%s.png\".")
     ;; Toggle between text and image display or editing
     (define-key map (kbd "C-c C-c") 'doc-view-toggle-display)
     map)
-  "Keymap used by `doc-minor-view-mode'.")
+  "Keymap used by `doc-view-minor-mode'.")
 
 ;;;; Navigation Commands
 
@@ -910,17 +910,27 @@ Resize the containing frame if needed."
          (width-diff  (- img-width  win-width))
          (height-diff (- img-height win-height))
          (new-frame-params
+          ;; If we can't resize the window, try and resize the frame.
+          ;; We used to compare the `window-width/height` and the
+          ;; `frame-width/height` instead of catching the errors, but
+          ;; it's too fiddly (e.g. in the presence of the miniwindow,
+          ;; the height the frame should be equal to the height of the
+          ;; root window +1).
           (append
-           (if (= (window-width) (frame-width))
-               `((width  . (text-pixels
-                            . ,(+ (frame-text-width) width-diff))))
-             (enlarge-window (/ width-diff (frame-char-width)) 'horiz)
-             nil)
-           (if (= (window-height) (frame-height))
-               `((height  . (text-pixels
-                             . ,(+ (frame-text-height) height-diff))))
-             (enlarge-window (/ height-diff (frame-char-height)) nil)
-             nil))))
+           (condition-case nil
+               (progn
+                 (enlarge-window (/ width-diff (frame-char-width)) 'horiz)
+                 nil)
+             (error
+              `((width  . (text-pixels
+                           . ,(+ (frame-text-width) width-diff))))))
+           (condition-case nil
+               (progn
+                 (enlarge-window (/ height-diff (frame-char-height)) nil)
+                 nil)
+             (error
+              `((height  . (text-pixels
+                            . ,(+ (frame-text-height) height-diff)))))))))
     (when new-frame-params
       (modify-frame-parameters (selected-frame) new-frame-params))))
 

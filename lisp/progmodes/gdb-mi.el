@@ -8,7 +8,7 @@
 
 ;; This file is part of GNU Emacs.
 
-;; Homepage: http://www.emacswiki.org/emacs/GDB-MI
+;; Homepage: https://www.emacswiki.org/emacs/GDB-MI
 
 ;; GNU Emacs is free software: you can redistribute it and/or modify
 ;; it under the terms of the GNU General Public License as published by
@@ -643,13 +643,14 @@ and looks under `gdb-window-configuration-directory'.
 
 Note that this variable only takes effect when variable
 `gdb-many-windows' is t."
-  :type 'string
+  :type '(choice (const :tag "None" nil)
+                 string)
   :group 'gdb
   :version "28.1")
 
 (defcustom gdb-display-source-buffer-action '(nil . ((inhibit-same-window . t)))
   "`display-buffer' action used when GDB displays a source buffer."
-  :type 'list
+  :type 'sexp
   :group 'gdb
   :version "28.1")
 

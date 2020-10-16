@@ -460,9 +460,12 @@ Thus, this does not include the shell's current directory.")
 This is the value of `pcomplete-command-completion-function' for
 Shell buffers.  It implements `shell-completion-execonly' for
 `pcomplete' completion."
-  (pcomplete-here (pcomplete-entries nil
-				     (if shell-completion-execonly
-					 'file-executable-p))))
+  (if (pcomplete-match "/")
+      (pcomplete-here (pcomplete-entries nil
+					 (if shell-completion-execonly
+					     'file-executable-p)))
+    (pcomplete-here
+     (nth 2 (shell--command-completion-data)))))
 
 (defun shell-completion-vars ()
   "Setup completion vars for `shell-mode' and `read-shell-command'."
@@ -1205,7 +1208,7 @@ Returns t if successful."
 	 (cwd (file-name-as-directory (expand-file-name default-directory)))
 	 (ignored-extensions
 	  (and comint-completion-fignore
-	       (mapconcat (function (lambda (x) (concat (regexp-quote x) "\\'")))
+               (mapconcat (lambda (x) (concat (regexp-quote x) "\\'"))
 			  comint-completion-fignore "\\|")))
 	 (dir "") (comps-in-dir ())
 	 (file "") (abs-file-name "") (completions ()))

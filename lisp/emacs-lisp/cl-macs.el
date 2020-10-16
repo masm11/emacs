@@ -2969,7 +2969,7 @@ Supported keywords for slots are:
               constrs))
     (pcase-dolist (`(,cname ,args ,doc) constrs)
       (let* ((anames (cl--arglist-args args))
-	     (make (cl-mapcar (function (lambda (s d) (if (memq s anames) s d)))
+             (make (cl-mapcar (lambda (s d) (if (memq s anames) s d))
 			      slots defaults))
 	     ;; `cl-defsubst' is fundamentally broken: it substitutes
              ;; its arguments into the body's `sexp' much too naively
@@ -3152,6 +3152,7 @@ Of course, we really can't know that for sure, so it's just a heuristic."
                  (buffer	. bufferp)
                  (character	. natnump)
                  (char-table	. char-table-p)
+                 (hash-table	. hash-table-p)
                  (cons		. consp)
                  (fixnum	. integerp)
                  (float		. floatp)
