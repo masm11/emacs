@@ -435,6 +435,11 @@ tags to be considered as well.
 ** Gnus
 
 +++
+*** New value for user option 'smiley-style'
+Smileys can now be rendered with emojis instead of small images when
+using the new 'emoji' value in 'smiley-style'.
+
++++
 *** New user option 'gnus-agent-eagerly-store-articles'.
 If non-nil (which is the default), the Gnus Agent will store all read
 articles in the Agent cache.
@@ -608,6 +613,16 @@ defaulting to active region when used interactively.
 ** The old non-SMIE indentation of 'sh-mode' has been removed.
 
 ---
+** The 'list-bookmark' menu is now based on 'tabulated-list-mode'.
+The interactive bookmark list will now benefit from features in
+'tabulated-list-mode' like sorting columns or changing column width.
+
+Support for the optional "inline" header line, allowing for a header
+without using 'header-line-format', has been dropped.  Consequently,
+the variables 'bookmark-bmenu-use-header-line' and
+'bookmark-bmenu-inline-header-height' are now declared obsolete.
+
+---
 ** The sb-image.el library is now marked obsolete.
 This file was a compatibility kludge which is no longer needed.
 
@@ -657,6 +672,13 @@ The user option 'eldoc-echo-area-use-multiline-p' is now handled
 by the ElDoc library itself.  Functions in
 'eldoc-documentation-functions' don't need to worry about consulting
 it when producing a doc string.
+
+** Shell
+
+---
+*** New command in 'shell-mode': 'narrow-to-prompt'.
+This is bound to 'C-x n d' in 'shell-mode' buffers, and narrows to the
+command line under point (and any following output).
 
 ** Eshell
 
@@ -1403,9 +1425,11 @@ mode, as are other data files produced by Emacs.
 It's a library to create, query, navigate and display hierarchy structures.
 
 ** New themes 'modus-vivendi' and 'modus-operandi'.
-These themes are designed for colour-contrast accessibility.  You can
-load the new themes using 'M-x customize-themes' or 'load-theme' from
-your init file.
+These themes are designed to conform with the highest standard for
+color-contrast accessibility (WCAG AAA).  You can load either of them
+using 'M-x customize-themes' or 'load-theme' from your init file.
+Consult the Modus Themes Info manual for more information on the user
+options they provide.
 
 
 * Incompatible Editing Changes in Emacs 28.1
@@ -1701,6 +1725,13 @@ personalize the uniquified buffer name.
 
 +++
 ** 'inhibit-nul-byte-detection' is renamed to 'inhibit-null-byte-detection'.
+
++++
+** New byte-compiler check for missing dynamic variable declarations.
+It is meant as an (experimental) aid for converting Emacs Lisp code
+to lexical binding, where dynamic (special) variables bound in one
+file can affect code in another.  For details, see the manual section
+'(Elisp) Converting to Lexical Binding'.
 
 
 * Changes in Emacs 28.1 on Non-Free Operating Systems
