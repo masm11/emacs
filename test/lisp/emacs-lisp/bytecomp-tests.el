@@ -365,7 +365,12 @@
             '(((a b)) a b (c) (d)))
     (mapcar (lambda (x) (cond ((memq '(a b) x) 1)
                               ((equal x '(c)) 2)))
-            '(((a b)) a b (c) (d))))
+            '(((a b)) a b (c) (d)))
+
+    (assoc 'b '((a 1) (b 2) (c 3)))
+    (assoc "b" '(("a" 1) ("b" 2) ("c" 3)))
+    (let ((x '((a 1) (b 2) (c 3)))) (assoc 'c x))
+    (assoc 'a '((a 1) (b 2) (c 3)) (lambda (u v) (not (equal u v)))))
   "List of expression for test.
 Each element will be executed by interpreter and with
 bytecompiled code, and their results compared.")
@@ -444,8 +449,8 @@ Subtests signal errors if something goes wrong."
            (if compile
                (let ((byte-compile-dest-file-function
                       (lambda (e) elcfile)))
-                 (byte-compile-file elfile t))
-             (load elfile nil 'nomessage)))
+                 (byte-compile-file elfile)))
+           (load elfile nil 'nomessage))
       (when elfile (delete-file elfile))
       (when elcfile (delete-file elcfile)))))
 (put 'test-byte-comp-compile-and-load 'lisp-indent-function 1)
@@ -646,7 +651,8 @@ literals (Bug#20852)."
                     (setq bytecomp-tests--foobar (bytecomp-tests--foobar))))
       (print form (current-buffer)))
     (write-region (point-min) (point-max) source nil 'silent)
-    (byte-compile-file source t)
+    (byte-compile-file source)
+    (load source)
     (should (equal bytecomp-tests--foobar (cons 1 2)))))
 
 (ert-deftest bytecomp-tests--test-no-warnings-with-advice ()

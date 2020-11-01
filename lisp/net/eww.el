@@ -695,11 +695,12 @@ Currently this means either text/html or application/xhtml+xml."
   (eww-handle-link dom)
   (let ((start (point)))
     (shr-tag-a dom)
-    (put-text-property start (point)
-                       'keymap
-                       (if (mm-images-in-region-p start (point))
-                           eww-image-link-keymap
-                         eww-link-keymap))))
+    (if (dom-attr dom 'href)
+        (put-text-property start (point)
+                           'keymap
+                           (if (mm-images-in-region-p start (point))
+                               eww-image-link-keymap
+                             eww-link-keymap)))))
 
 (defun eww--limit-string-pixelwise (string pixels)
   (if (not pixels)
@@ -1189,6 +1190,7 @@ just re-display the HTML already fetched."
     (define-key map [(control e)] 'eww-end-of-text)
     (define-key map [?\t] 'shr-next-link)
     (define-key map [?\M-\t] 'shr-previous-link)
+    (define-key map [backtab] 'shr-previous-link)
     map))
 
 (defvar eww-textarea-map
@@ -1198,6 +1200,7 @@ just re-display the HTML already fetched."
     (define-key map [(control c) (control c)] 'eww-submit)
     (define-key map [?\t] 'shr-next-link)
     (define-key map [?\M-\t] 'shr-previous-link)
+    (define-key map [backtab] 'shr-previous-link)
     map))
 
 (defvar eww-select-map

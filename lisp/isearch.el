@@ -54,7 +54,6 @@
 ;;; Code:
 
 (eval-when-compile (require 'cl-lib))
-(declare-function tmm-menubar-keymap "tmm.el")
 
 ;; Some additional options and constants.
 
@@ -505,7 +504,7 @@ This is like `describe-bindings', but displays only Isearch keys."
   (require 'tmm)
   (run-hooks 'menu-bar-update-hook)
   (let ((command nil))
-    (let ((menu-bar (tmm-menubar-keymap)))
+    (let ((menu-bar (menu-bar-keymap)))
       (with-isearch-suspended
        (setq command (let ((isearch-mode t)) ; Show bindings from
                                              ; `isearch-mode-map' in
@@ -3263,6 +3262,8 @@ the word mode."
 			      (< (point) isearch-opoint)))
 		       "over")
 		   (if isearch-wrapped "wrapped ")
+                   (if (and (not isearch-success) (buffer-narrowed-p) widen-automatically)
+                       "narrowed-buffer " "")
                    (if (and (not isearch-success) (not isearch-case-fold-search))
                        "case-sensitive ")
                    (let ((prefix ""))

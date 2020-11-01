@@ -2788,9 +2788,7 @@ Consider adding this function to `message-header-setup-hook'"
 	 ;; add URL
 	 (when (nth 1 message-openpgp-header)
 	   (when need-sep (insert "; "))
-	   (if (string-match-p ";")
-	       (insert "url=\"" (nth 1 message-openpgp-header) "\"")
-	     (insert "url=\"" (nth 1 message-openpgp-header) "\""))
+	   (insert "url=\"" (nth 1 message-openpgp-header) "\"")
 	   (setq need-sep t))
 	 ;; add preference
 	 (when (nth 2 message-openpgp-header)
@@ -8863,6 +8861,8 @@ will then start up Emacs ready to compose mail."
 
 (provide 'message)
 
+(make-obsolete-variable 'message-load-hook
+                        "use `with-eval-after-load' instead." "28.1")
 (run-hooks 'message-load-hook)
 
 ;; Local Variables:

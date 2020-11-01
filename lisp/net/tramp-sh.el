@@ -480,7 +480,7 @@ The string is used in `tramp-methods'.")
 ;; HP-UX: /usr/bin:/usr/ccs/bin:/opt/ansic/bin:/opt/langtools/bin:/opt/fortran/bin
 ;; Solaris: /usr/xpg4/bin:/usr/ccs/bin:/usr/bin:/opt/SUNWspro/bin
 ;; GNU/Linux (Debian, Suse, RHEL): /bin:/usr/bin
-;; FreeBSD: /usr/bin:/bin:/usr/sbin:/sbin: - beware trailing ":"!
+;; FreeBSD, DragonFly: /usr/bin:/bin:/usr/sbin:/sbin: - beware trailing ":"!
 ;; Darwin: /usr/bin:/bin:/usr/sbin:/sbin
 ;; IRIX64: /usr/bin
 ;; QNAP QTS: ---
@@ -2809,7 +2809,7 @@ implementation will be used."
 	    (signal 'wrong-type-argument (list #'stringp name)))
 	  (unless (or (null buffer) (bufferp buffer) (stringp buffer))
 	    (signal 'wrong-type-argument (list #'stringp buffer)))
-	  (unless (consp command)
+	  (unless (or (null command) (consp command))
 	    (signal 'wrong-type-argument (list #'consp command)))
 	  (unless (or (null coding)
 		      (and (symbolp coding) (memq coding coding-system-list))
@@ -2850,8 +2850,10 @@ implementation will be used."
 		 ;; command.
 		 (heredoc (and (stringp program)
 			       (string-match-p "sh$" program)
+			       (= (length args) 2)
 			       (string-equal "-c" (car args))
-			       (= (length args) 2)))
+			       ;; Don't if there is a string.
+			       (not (string-match-p "'\\|\"" (cadr args)))))
 		 ;; When PROGRAM is nil, we just provide a tty.
 		 (args (if (not heredoc) args
 			 (let ((i 250))
@@ -4386,7 +4388,7 @@ process to set up.  VEC specifies the connection."
        (t
 	(tramp-message
 	 vec 5 "Checking remote host type for `send-process-string' bug")
-	(if (string-match-p "^FreeBSD" uname) 500 0))))
+	(if (string-match-p "FreeBSD\\|DragonFly" uname) 500 0))))
 
     ;; Set remote PATH variable.
     (tramp-set-remote-path vec)
@@ -4413,7 +4415,7 @@ process to set up.  VEC specifies the connection."
       (tramp-send-command vec "set +H" t))
 
     ;; Disable tab expansion.
-    (if (string-match-p "BSD\\|Darwin" uname)
+    (if (string-match-p "BSD\\|DragonFly\\|Darwin" uname)
 	(tramp-send-command vec "stty tabs" t)
       (tramp-send-command vec "stty tab0" t))
 

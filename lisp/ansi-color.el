@@ -39,7 +39,7 @@
 ;;
 ;; SGR control sequences are defined in section 3.8.117 of the ECMA-48
 ;; standard (identical to ISO/IEC 6429), which is freely available as a
-;; PDF file <URL:http://www.ecma-international.org/publications/standards/Ecma-048.htm>.
+;; PDF file <URL:https://www.ecma-international.org/publications/standards/Ecma-048.htm>.
 ;; The "Graphic Rendition Combination Mode (GRCM)" implemented is
 ;; "cumulative mode" as defined in section 7.2.8.  Cumulative mode
 ;; means that whenever possible, SGR control sequences are combined
@@ -84,7 +84,7 @@ This translation effectively colorizes strings and regions based upon
 SGR control sequences embedded in the text.  SGR (Select Graphic
 Rendition) control sequences are defined in section 8.3.117 of the
 ECMA-48 standard (identical to ISO/IEC 6429), which is freely available
-at <URL:http://www.ecma-international.org/publications/standards/Ecma-048.htm>
+at <URL:https://www.ecma-international.org/publications/standards/Ecma-048.htm>
 as a PDF file."
   :version "21.1"
   :group 'processes)
@@ -414,11 +414,17 @@ this."
 	;; if the rest of the region should have a face, put it there
 	(funcall ansi-color-apply-face-function
 		 start-marker end-marker (ansi-color--find-face codes))
-	(setq ansi-color-context-region (if codes (list codes)))))
+        ;; Save a restart position when there are codes active. It's
+        ;; convenient for man.el's process filter to pass `begin'
+        ;; positions that overlap regions previously colored; these
+        ;; `codes' should not be applied to that overlap, so we need
+        ;; to know where they should really start.
+	(setq ansi-color-context-region (if codes (list codes end-marker)))))
     ;; Clean up our temporary markers.
     (unless (eq start-marker (cadr ansi-color-context-region))
       (set-marker start-marker nil))
-    (set-marker end-marker nil)))
+    (unless (eq end-marker (cadr ansi-color-context-region))
+      (set-marker end-marker nil))))
 
 (defun ansi-color-apply-overlay-face (beg end face)
   "Make an overlay from BEG to END, and apply face FACE.

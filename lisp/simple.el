@@ -119,8 +119,12 @@ If non-nil, the value is passed directly to `recenter'."
   :version "23.1")
 
 (defcustom next-error-message-highlight nil
-  "If non-nil, highlight the current error message in the `next-error' buffer."
-  :type 'boolean
+  "If non-nil, highlight the current error message in the `next-error' buffer.
+If the value is `keep', highlighting is permanent, so all visited error
+messages are highlighted; this helps to see what messages were visited."
+  :type '(choice (const :tag "Highlight the current error" t)
+                 (const :tag "Highlight all visited errors" keep)
+                 (const :tag "No highlighting" nil))
   :group 'next-error
   :version "28.1")
 
@@ -482,7 +486,8 @@ buffer causes automatic display of the corresponding source code location."
   "Highlight the current error message in the ‘next-error’ buffer."
   (when next-error-message-highlight
     (with-current-buffer error-buffer
-      (when next-error--message-highlight-overlay
+      (when (and next-error--message-highlight-overlay
+                 (not (eq next-error-message-highlight 'keep)))
         (delete-overlay next-error--message-highlight-overlay))
       (let ((ol (make-overlay (line-beginning-position) (1+ (line-end-position)))))
         ;; do not override region highlighting
@@ -1129,7 +1134,11 @@ is supplied, or Transient Mark mode is enabled and the mark is active."
 	 ;; If the end of the buffer is not already on the screen,
 	 ;; then scroll specially to put it near, but not at, the bottom.
 	 (overlay-recenter (point))
-	 (recenter -3))))
+	 ;; FIXME: Arguably if `scroll-conservatively' is set, then
+         ;; we should pass -1 to `recenter'.
+	 (recenter (if (and scroll-minibuffer-conservatively
+	                    (window-minibuffer-p))
+	               -1 -3)))))
 
 (defcustom delete-active-region t
   "Whether single-char deletion commands delete an active region.
@@ -1286,11 +1295,11 @@ that uses or sets the mark."
               "")))
       ;; Read the argument, offering that number (if any) as default.
       (list (read-number (format "Goto%s line%s: "
-                                 (if (= (point-min) 1) ""
-                                   ;; In a narrowed buffer.
-                                   (if relative " relative" " absolute"))
+                                 (if (buffer-narrowed-p)
+                                     (if relative " relative" " absolute")
+                                   "")
                                  buffer-prompt)
-                         (list default (if (or relative (= (point-min) 1))
+                         (list default (if (or relative (not (buffer-narrowed-p)))
                                            (line-number-at-pos)
                                          (save-restriction
                                            (widen)
@@ -1335,18 +1344,20 @@ rather than line counts."
   ;; Leave mark at previous position
   (or (region-active-p) (push-mark))
   ;; Move to the specified line number in that buffer.
-  (if (and (not relative) (not widen-automatically))
-      (save-restriction
-        (widen)
-        (goto-char (point-min))
-        (if (eq selective-display t)
-            (re-search-forward "[\n\C-m]" nil 'end (1- line))
-          (forward-line (1- line))))
-    (unless relative (widen))
-    (goto-char (point-min))
-    (if (eq selective-display t)
-	(re-search-forward "[\n\C-m]" nil 'end (1- line))
-      (forward-line (1- line)))))
+  (let ((pos (save-restriction
+               (unless relative (widen))
+               (goto-char (point-min))
+               (if (eq selective-display t)
+                   (re-search-forward "[\n\C-m]" nil 'end (1- line))
+                 (forward-line (1- line)))
+               (point))))
+    (when (and (not relative)
+               (buffer-narrowed-p)
+               widen-automatically
+               ;; Position is outside narrowed part of buffer
+               (or (> (point-min) pos) (> pos (point-max))))
+      (widen))
+    (goto-char pos)))
 
 (defun goto-line-relative (line &optional buffer)
   "Go to LINE, counting from line at (point-min).
@@ -8009,6 +8020,7 @@ The function should return non-nil if the two tokens do not match.")
 	   (blinkpos
             (save-excursion
               (save-restriction
+		(syntax-propertize (point))
                 (if blink-matching-paren-distance
                     (narrow-to-region
                      (max (minibuffer-prompt-end) ;(point-min) unless minibuf.
@@ -8019,7 +8031,6 @@ The function should return non-nil if the two tokens do not match.")
                             (not blink-matching-paren-dont-ignore-comments))))
                   (condition-case ()
                       (progn
-			(syntax-propertize (point))
                         (forward-sexp -1)
                         ;; backward-sexp skips backward over prefix chars,
                         ;; so move back to the matching paren.
