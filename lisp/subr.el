@@ -896,7 +896,7 @@ This is the same format used for saving keyboard macros (see
 For an approximate inverse of this, see `key-description'."
   ;; Don't use a defalias, since the `pure' property is true only for
   ;; the calling convention of `kbd'.
-  (declare (pure t))
+  (declare (pure t) (side-effect-free t))
   ;; A pure function is expected to preserve the match data.
   (save-match-data (read-kbd-macro keys)))
 
@@ -2767,12 +2767,14 @@ Also discard all previous input in the minibuffer."
 (defvar empty-history)
 
 (defun read-char-from-minibuffer (prompt &optional chars history)
-  "Read a character from the minibuffer, prompting for PROMPT.
+  "Read a character from the minibuffer, prompting for it with PROMPT.
 Like `read-char', but uses the minibuffer to read and return a character.
-When CHARS is non-nil, any input that is not one of CHARS is ignored.
-When HISTORY is a symbol, then allows navigating in a history.
-The navigation commands are `M-p' and `M-n', with `RET' to select
-a character from history."
+Optional argument CHARS, if non-nil, should be a list of characters;
+the function will ignore any input that is not one of CHARS.
+Optional argument HISTORY, if non-nil, should be a symbol that
+specifies the history list variable to use for navigating in input
+history using `M-p' and `M-n', with `RET' to select a character from
+history."
   (let* ((empty-history '())
          (map (if (consp chars)
                   (or (gethash chars read-char-from-minibuffer-map-hash)
@@ -4446,7 +4448,7 @@ Unless optional argument INPLACE is non-nil, return a new string."
 
 (defun string-replace (fromstring tostring instring)
   "Replace FROMSTRING with TOSTRING in INSTRING each time it occurs."
-  (declare (pure t))
+  (declare (pure t) (side-effect-free t))
   (when (equal fromstring "")
     (signal 'wrong-length-argument fromstring))
   (let ((start 0)
