@@ -90,14 +90,18 @@
 
 ;;; Internal Variables:
 
-(defvar gnus-search-memo-query nil
-  "Internal: stores current query.")
-
-(defvar gnus-search-memo-server nil
-  "Internal: stores current server.")
+;; When Gnus servers are implemented as objects or structs, give them
+;; a `search-engine' slot and get rid of this variable.
+(defvar gnus-search-engine-instance-alist nil
+  "Mapping between servers and instantiated search engines.")
 
 (defvar gnus-search-history ()
   "Internal history of Gnus searches.")
+
+(defun gnus-search-shutdown ()
+  (setq gnus-search-engine-instance-alist nil))
+
+(gnus-add-shutdown #'gnus-search-shutdown 'gnus)
 
 (define-error 'gnus-search-parse-error "Gnus search parsing error")
 
@@ -962,12 +966,18 @@ Responsible for handling and, or, and parenthetical expressions.")
 
 (cl-defmethod gnus-search-make-query-string ((engine gnus-search-engine)
 					     query-spec)
-  (if (and gnus-search-use-parsed-queries
-	   (null (alist-get 'raw query-spec))
-	   (null (slot-value engine 'raw-queries-p)))
-      (gnus-search-transform
-       engine (alist-get 'parsed-query query-spec))
-    (alist-get 'query query-spec)))
+  (let ((parsed-query (alist-get 'parsed-query query-spec))
+	(raw-query (alist-get 'query query-spec)))
+    (if (and gnus-search-use-parsed-queries
+	     (null (alist-get 'raw query-spec))
+	     (null (slot-value engine 'raw-queries-p))
+	     parsed-query)
+	(gnus-search-transform engine parsed-query)
+      (if (listp raw-query)
+	  ;; Some callers are sending this in as (query "query"), not
+	  ;; as a cons cell?
+	  (car raw-query)
+	raw-query))))
 
 (defsubst gnus-search-single-p (query)
   "Return t if QUERY is a search for a single message."
@@ -1108,7 +1118,7 @@ Other capabilities could be tested here."
 ;; TODO: Don't exclude booleans and date keys, just check for them
 ;; before checking for general keywords.
 (defvar gnus-search-imap-search-keys
-  '(body cc bcc from header keyword larger smaller subject text to uid)
+  '(body cc bcc from header keyword larger smaller subject text to uid x-gm-raw)
   "Known IMAP search keys, excluding booleans and date keys.")
 
 (cl-defmethod gnus-search-transform ((_ gnus-search-imap)
@@ -1309,7 +1319,7 @@ filenames, sometimes with additional information.  Returns a list
 of viable results, in the form of a list of [group article score]
 vectors.")
 
-(cl-defgeneric gnus-search-index-extract (engine)
+(cl-defgeneric gnus-search-indexed-extract (engine)
   "Extract a single article result from the current buffer.
 Returns a list of two values: a file name, and a relevancy score.
 Advances point to the beginning of the next result.")
@@ -1952,7 +1962,8 @@ remaining string, then adds all that to the top-level spec."
 	(setq query
 	      (string-trim (replace-match "" t t query 0)))
 	(setf (alist-get 'query query-spec) query)))
-    (when gnus-search-use-parsed-queries
+    (when (and gnus-search-use-parsed-queries
+	       (null (alist-get 'raw query-spec)))
       (setf (alist-get 'parsed-query query-spec)
 	    (gnus-search-parse-query query)))
     query-spec))
@@ -1963,38 +1974,46 @@ remaining string, then adds all that to the top-level spec."
 (defun gnus-search-server-to-engine (srv)
   (let* ((method (gnus-server-to-method srv))
 	 (engine-config (assoc 'gnus-search-engine (cddr method)))
-	 (server
-	  (or (nth 1 engine-config)
-	      (cdr-safe (assoc (car method) gnus-search-default-engines))
-	      (when-let ((old (assoc 'nnir-search-engine
-				     (cddr method))))
-		(nnheader-message
-		 8 "\"nnir-search-engine\" is no longer a valid parameter")
-		(pcase (nth 1 old)
-		  ('notmuch 'gnus-search-notmuch)
-		  ('namazu 'gnus-search-namazu)
-		  ('find-grep 'gnus-search-find-grep)))))
-	 (inst
+	 (server (or (cdr-safe
+		      (assoc-string srv gnus-search-engine-instance-alist t))
+		     (nth 1 engine-config)
+		     (cdr-safe (assoc (car method) gnus-search-default-engines))
+		     (when-let ((old (assoc 'nnir-search-engine
+					    (cddr method))))
+		       (nnheader-message
+			8 "\"nnir-search-engine\" is no longer a valid parameter")
+		       (nth 1 old))))
+	 inst)
+    (setq server
+	  (pcase server
+	    ('notmuch 'gnus-search-notmuch)
+	    ('namazu 'gnus-search-namazu)
+	    ('find-grep 'gnus-search-find-grep)
+	    ('imap 'gnus-search-imap)
+	    (_ server))
+	  inst
 	  (cond
 	   ((null server) nil)
 	   ((eieio-object-p server)
 	    server)
 	   ((class-p server)
 	    (make-instance server))
-	   (t nil))))
+	   (t nil)))
     (if inst
-	(when (cddr engine-config)
-	  ;; We're not being completely backward-compatible here,
-	  ;; because we're not checking for nnir-specific config
-	  ;; options in the server definition.
-	  (pcase-dolist (`(,key ,value) (cddr engine-config))
-	    (condition-case nil
-		(setf (slot-value inst key) value)
-	      ((invalid-slot-name invalid-slot-type)
-	       (nnheader-message
-		5 "Invalid search engine parameter: (%s %s)"
-		key value)))))
-      (error "No search engine defined for %S" method))
+	(unless (assoc-string srv gnus-search-engine-instance-alist t)
+	  (when (cddr engine-config)
+	    ;; We're not being completely backward-compatible here,
+	    ;; because we're not checking for nnir-specific config
+	    ;; options in the server definition.
+	    (pcase-dolist (`(,key ,value) (cddr engine-config))
+	      (condition-case nil
+		  (setf (slot-value inst key) value)
+		((invalid-slot-name invalid-slot-type)
+		 (nnheader-message
+		  5 "Invalid search engine parameter: (%s %s)"
+		  key value)))))
+	  (push (cons srv inst) gnus-search-engine-instance-alist))
+      (error "No search engine defined for %s" srv))
     inst))
 
 (declare-function gnus-registry-get-id-key "gnus-registry" (id key))
@@ -2082,9 +2101,10 @@ article came from is also searched."
 (defun gnus-search--complete-key-data ()
   "Potentially return completion data for a search key or value."
   (let* ((key-start (save-excursion
-		      (if (re-search-backward " " (minibuffer-prompt-end) t)
-			  (1+ (point))
-			(minibuffer-prompt-end))))
+		      (or (re-search-backward " " (minibuffer-prompt-end) t)
+			  (goto-char (minibuffer-prompt-end)))
+		      (skip-chars-forward " -")
+		      (point)))
 	 (after-colon (save-excursion
 			(when (re-search-backward ":" key-start t)
 			  (1+ (point)))))
@@ -2094,7 +2114,7 @@ article came from is also searched."
 	;; only handle in a contact-completion context.
 	(when (and gnus-search-contact-tables
 		   (save-excursion
-		     (re-search-backward "\\<\\(\\w+\\):" key-start t)
+		     (re-search-backward "\\<-?\\(\\w+\\):" key-start t)
 		     (member (match-string 1)
 			     '("from" "to" "cc"
 			       "bcc" "recipient" "address"))))
@@ -2107,7 +2127,8 @@ article came from is also searched."
 		  ;; If the value contains spaces, make sure it's
 		  ;; quoted.
 		  (when (and (memql status '(exact finished))
-			     (string-match-p " " str))
+			     (or (string-match-p " " str)
+				 in-string))
 		    (unless (looking-at-p "\\s\"")
 		      (insert "\""))
 		    ;; Unless we already have an opening quote...

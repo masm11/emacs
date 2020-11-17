@@ -1103,13 +1103,13 @@ Otherwise, return a new string (without any text properties)."
                       (describe-map-tree this-keymap t (nreverse earlier-maps)
                                          nil nil t nil nil t))))))))
              ;; 2. Handle quotes.
-             ((and (eq (get-quoting-style) 'curve)
+             ((and (eq (text-quoting-style) 'curve)
                    (or (and (= (following-char) ?\`)
                             (prog1 t (insert "‘")))
                        (and (= (following-char) ?')
                             (prog1 t (insert "’")))))
               (delete-char 1))
-             ((and (eq (get-quoting-style) 'straight)
+             ((and (eq (text-quoting-style) 'straight)
                    (= (following-char) ?\`))
               (insert "'")
               (delete-char 1))
@@ -1310,6 +1310,7 @@ TRANSL, PARTIAL, SHADOW, NOMENU, MENTION-SHADOW are as in
                                 ((and mention-shadow (not (eq tem definition)))
                                  (setq this-shadowed t))
                                 (t nil))))
+                    (eq definition (lookup-key tail (vector event) t))
                     (push (list event definition this-shadowed) vect))))
             ((eq (car tail) 'keymap)
              ;; The same keymap might be in the structure twice, if
