@@ -712,6 +712,16 @@ This file was a compatibility kludge which is no longer needed.
 To revert to the previous behavior,
 '(setq lisp-indent-function 'lisp-indent-function)' from 'lisp-mode-hook'.
 
+** Customize
+
+*** Most customize commands now hide obsolete user options.
+Obsolete user options are no longer shown in the listings produced by
+the commands `customize', `customize-group', `customize-apropos' and
+`customize-changed-options'.
+
+To customize obsolete user options, use `customize-option' or
+`customize-saved'.
+
 ** Edebug
 
 +++
@@ -1757,6 +1767,11 @@ ledit.el, lmenu.el, lucid.el and old-whitespace.el.
 
 
 * Lisp Changes in Emacs 28.1
+
++++
+** 'set-window-configuration' now takes an optional 'dont-set-frame'
+parameter which, when non-nil, instructs the function not to select
+the frame recorded in the configuration.
 
 +++
 ** 'define-globalized-minor-mode' now takes a ':predicate' parameter.
