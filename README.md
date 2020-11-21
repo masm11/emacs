@@ -137,16 +137,16 @@ in `~/.emacs`:
 
 - archlinux
 - gtk+ 3.24.23
-- glib2 2.64.5
+- glib2 2.66.2
 - gcc 10.2.0
 - wayland 1.18.0
 - wayland-protocols 1.20
 - cairo 1.17.2
-- freetype2 2.10.2
-- imagemagick 7.0.10.29
-- ibus 1.5.22
+- freetype2 2.10.4
+- imagemagick 7.0.10.39
+- ibus 1.5.23
 - mozc 2.23.2815.102
-- wayfire 0.5.0
+- wayfire 0.6.0
 
 ## Notice
 
