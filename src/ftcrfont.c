@@ -160,6 +160,12 @@ ftcrfont_open (struct frame *f, Lisp_Object entity, int pixel_size)
   cairo_matrix_t font_matrix, ctm;
   cairo_matrix_init_scale (&font_matrix, pixel_size, pixel_size);
   cairo_matrix_init_identity (&ctm);
+#ifdef HAVE_PGTK
+  {
+    double scale = pgtk_get_gdk_dpi_scale();
+    cairo_matrix_scale (&font_matrix, scale, scale);
+  }
+#endif
   cairo_font_options_t *options = cairo_font_options_create ();
   cairo_scaled_font_t *scaled_font
     = cairo_scaled_font_create (font_face, &font_matrix, &ctm, options);

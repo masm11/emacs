@@ -1952,6 +1952,21 @@ x_draw_glyph_string_box (struct glyph_string *s)
     }
 }
 
+double
+pgtk_get_gdk_dpi_scale(void)
+{
+  const char *str = getenv ("GDK_DPI_SCALE");
+
+  if (str)
+    {
+      double scale = atof (str);
+      if (scale > 0)
+	return scale;
+    }
+
+  return 1.0;
+}
+
 static void
 x_get_scale_factor (int *scale_x, int *scale_y)
 {

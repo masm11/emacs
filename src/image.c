@@ -2156,6 +2156,10 @@ compute_image_size (size_t width, size_t height,
 
   width = width * scale;
   height = height * scale;
+#ifdef HAVE_PGTK
+  width *= pgtk_get_gdk_dpi_scale();
+  height *= pgtk_get_gdk_dpi_scale();
+#endif
 
   if (desired_width != -1)
     /* Width known, calculate height. */
